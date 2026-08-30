@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "সমবায় সমিতি"
+description = "A Bangla cooperative society management mobile app for admins and field workers. It includes local member, group, employee, loan, collection, posting, reporting, and bank transaction workflows with automatic profit calculations."
+version = "1.0.0"
+id = "artifacts/somobay-somiti"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 24027
+
+[services.development]
+run = "pnpm --filter @workspace/somobay-somiti run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/somobay-somiti", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/somobay-somiti", "run", "serve" ]
+
+[services.env]
+PORT = "24027"
+BASE_PATH = "/"

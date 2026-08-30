@@ -1,0 +1,278 @@
+Create a complete Flutter mobile app named "সমবায় সমিতি" in Bangla with sqflite database.
+IMPORTANT: 
+On first app start, auto create 2 default users: admin/123456 role=admin, field/1234 role=field_worker
+Use light purple theme, clean cards, Bangla font
+LOGIN PAGE: 2 big buttons side by side at top. 
+Button 1: "এডমিন লগইন" with shield icon, purple. 
+Button 2: "মাঠকর্মী লগইন" with person icon, green 
+Click shows username and password form 
+ADMIN DASHBOARD - 10 Buttons in grid: গ্রুপ ব্যবস্থাপনা, কর্মচারীগণের তথ্য, নতুন সদস্য ভর্তি, ঋণ বিতরণ, মুনাফা/লাভ, ব্যাংক লেনদেন, এক নজরে, দৈনিক আদায় রিপোর্ট Admin CANNOT do collection
+FIELD WORKER DASHBOARD - 3 Buttons: আদায়, পোস্টিং দিন, গ্রুপের রিপোর্ট 
+Add a "সেটিংস" button to Admin Dashboard. 
+Inside Settings add "পাসওয়ার্ড পরিবর্তন" form. Fields: পুরাতন পাসওয়ার্ড, নতুন পাসওয়ার্ড, নতুন পাসওয়ার্ড আবার দিন
+Save to users table where role = admin 
+FEATURE DETAILS:
+1. গ্রুপ ব্যবস্থাপনা: Only show group list page.
+
+Design:
+- AppBar title: গ্রুপ ব্যবস্থাপনা, purple background #5B2C83
+- Below AppBar, header row: Left side purple circle with + icon and text "গ্রুপ তালিকা", Right side "মোট X টি"
+- On tap + icon, open AlertDialog with 2 TextFields: গ্রুপ নাম, গ্রুপ কোড and Save button
+- Body: ListView of groups. Each item is Card with:
+  Left: purple icon with group members icon
+  Center: গ্রুপ নাম bold, কোড: GR-XXXX, সদস্য X জন
+  Right: 2 icon buttons - Edit (pencil) and Delete (trash) vertical
+- CRUD with sqflite table groups (id, name, code)
+- When delete, show confirmation dialog
+- When edit, open same dialog with existing data
+- Background color #F5F0FF light purple
+2. মাঠকর্মীর তথ্য: IMPLEMENT EXACT DIALOG FROM IMAGE - WITH বয়স:
+
+Title: নতুন মাঠকর্মী যোগ করুন (purple bold, top center) with X close button on right
+
+Body layout in Dialog:
+1. Center CircleAvatar:
+   - radius: 50, backgroundColor: #C8B6FF light purple
+   - child: Icon(Icons.person_outline, size 50, color purple #5B2C83)
+   - When image picked, show FileImage inside avatar
+
+2. Below avatar, Row center with 2 buttons:
+   - OutlinedButton.icon: icon camera_alt, label "ক্যামেরা", onTap: ImagePicker().pickImage(source: ImageSource.camera)
+   - OutlinedButton.icon: icon photo, label "গ্যালারি", onTap: ImagePicker().pickImage(source: ImageSource.gallery)
+   - Border color purple, text purple
+
+3. Form Fields (All with light purple background #EDE7FF, purple border, rounded 10):
+
+   - Row: icon person + text "নাম" + TextField hint "নাম লিখুন" + controller nameController
+   
+   - Row: icon call + text "মোবাইল" + TextField hint "01XXXXXXXX" + keyboardType phone
+   
+   - Row: icon cake + text "বয়স" + TextField hint "বয়স লিখুন" + keyboardType number + controller ageController
+     * maxLength: 2
+     * inputFormatters: [FilteringTextInputFormatter.digitsOnly]
+     * suffixText: "বছর"
+
+   - Row: icon location_on + text "ঠিকানা" + TextField hint "ঠিকানা লিখুন"
+   
+   - Row: icon @ + text "ইউজারনেম" + TextField hint "ইউজারনেম লিখুন"
+   
+   - Row: icon lock + text "পাসওয়ার্ড" + TextField obscureText + eye icon + hint "......."
+   
+   - Row: icon groups + text "গ্রুপ অ্যাসাইন" + Dropdown "গ্রুপ নির্বাচন করুন"
+
+4. VALIDATION FOR বয়স on সংরক্ষণ button:
+   
+   String ageText = ageController.text.trim();
+   if(ageText.isEmpty){
+     Show SnackBar "বয়স লিখুন";
+     return;
+   }
+   int? age = int.tryParse(ageText);
+   if(age == null || age < 18){
+     Show SnackBar "বয়স সর্বনিম্ন ১৮ বছর হতে হবে";
+     return;
+   }
+   if(age > 65){
+     Show SnackBar "বয়স ৬৫ বছরের বেশি হতে পারবে না";
+     return;
+   }
+   // If valid, proceed to save
+
+5. Bottom Row:
+   - Left: OutlinedButton "বাতিল" white with purple border
+   - Right: ElevatedButton "সংরক্ষণ" purple background white text -> runs validation then save
+
+Dependencies: image_picker: ^1.0.7
+Database: 
+- employees table add columns: photo_path TEXT, age INTEGER
+- Save ageController value as integer
+
+List: Show photo in avatar + Show "বয়স: 25 বছর" in employee list tile subtitle
+3. নতুন সদস্য ভর্তি: IMPLEMENT EXACTLY THIS IMAGE - নতুন সদস্য ভর্তি করুন:
+
+UI DESIGN:
+- AppBar: Purple #4A148C, title "নতুন সদস্য ভর্তি করুন" white bold center, back arrow left
+- Background: light #F3EFFF
+- Top: CircleAvatar radius 45, light purple bg #D1C4E9 with person icon outline purple, border purple 2px
+- Below Avatar: Row center 2 OutlinedButtons:
+  [camera icon + "ক্যামেরা" - onTap: ImagePicker().pickImage(source: ImageSource.camera)]
+  [image icon + "গ্যালারি" - onTap: ImagePicker().pickImage(source: ImageSource.gallery)]
+  When picked show image in avatar using FileImage
+
+- Form Fields: Label left bold purple, TextField right with purple border, white bg, rounded 8px, light purple fill #EDE7FF
+    1. সদস্য নং - hint "যেমন: 00123"
+    2. নাম - hint "সদস্যের নাম লিখুন"
+    3. পিতার নাম - hint "পিতার নাম লিখুন"
+    4. মাতার নাম - hint "মাতার নাম লিখুন"
+    5. স্বামী/স্ত্রী - hint "স্বামী/স্ত্রীর নাম লিখুন"
+    6. জন্ম তারিখ - hint "জন্ম তারিখ নির্বাচন করুন" + suffixIcon calendar - READONLY TRUE - onTap opens DatePicker (see logic below)
+    7. NID - hint "জাতীয় পরিচয়পত্র নম্বর লিখুন"
+    8. মোবাইল - prefixIcon phone purple + hint "01XXXXXXXXX"
+    9. গ্রুপ নাম - hint "গ্রুপের নাম লিখুন"
+    10. গ্রুপ কোড - hint "গ্রুপ কোড লিখুন"
+    11. ভর্তি তারিখ - hint "ভর্তি তারিখ নির্বাচন করুন" + suffixIcon calendar - READONLY TRUE - onTap opens DatePicker
+    12. মন্তব্য - hint "মন্তব্য লিখুন..."
+
+- ঠিকানা Section:
+  Label: location_on icon + "ঠিকানা" purple bold 22sp
+  Grid 2 columns:
+    - Box 1: location icon + "গ্রাম" + "গ্রামের নাম লিখুন"
+    - Box 2: location icon + "ইউনিয়ন" + "ইউনিয়নের নাম লিখুন"
+    - Box 3: location icon + "উপজেলা" + "উপজেলার নাম লিখুন"
+    - Box 4: location icon + "জেলা" + "জেলার নাম লিখুন"
+  Each box: light purple bg, purple border, rounded 12px
+
+- Bottom: Row 2 buttons:
+  Left: OutlinedButton "বাতিল" white bg purple border
+  Right: ElevatedButton "সংরক্ষণ" purple bg #4A148C white text
+
+DATE PICKER LOGIC (CALENDAR):
+- For both জন্ম তারিখ and ভর্তি তারিখ TextFields:
+  readOnly: true,
+  onTap: () async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: field == birth ? DateTime(2000) : DateTime.now(),
+      firstDate: DateTime(1950),
+      lastDate: DateTime(2100),
+      builder: (context, child) => Theme(
+        data: ThemeData.light().copyWith(
+          colorScheme: ColorScheme.light(primary: Color(0xFF4A148C)),
+        ),
+        child: child!,
+      ),
+    );
+    if(picked != null) {
+      controller.text = "${picked.day.toString().padLeft(2,'0')}/${picked.month.toString().padLeft(2,'0')}/${picked.year}";
+    }
+  }
+
+GROUP LOGIC:
+- On সংরক্ষণ: Take গ্রুপ নাম + গ্রুপ কোড, query groups table, if not exists create new group, get group_id, save member with group_id, village, union_name, upazila, district, photo_path
+
+Database members columns: member_no, name, father_name, mother_name, spouse_name, birth_date, nid, mobile, group_name, group_code, group_id, admission_date, comment, village, union_name, upazila, district, photo_path
+
+Dependencies: image_picker
+4. ঋণ বিতরণ: BUILD EXACT UI FROM IMAGE - লোন বিতরণ ফর্ম - AUTO MUNAFA - WITH NOW DATE
+
+HEADER:
+- AppBar purple #7B2FF7 with title "লোন বিতরণ ফর্ম" white bold + left bank icon + right 3 icons: grid, settings, button "মুনাফা সেটিংস"
+- Subtitle: "স্বয়ংক্রিয় মুনাফা হিসাব সহ হালনাগাদ ফর্ম"
+
+FORM CARD white rounded 16px with fields:
+
+1) লোনের পরিমাণ (i icon)
+   TextField: "৳ ৫০,০০০" - background #EDE7FF, border purple, controller loanAmountController, keyboardType number
+   onChanged: () => recalculateMunafa()
+
+2) মুনাফা (অটো হিসাব) with purple badge "অটো" + lock icon
+   TextField READ ONLY: "৳ ৫,০০০" - background #E0E0E0 grey, lock icon suffix, bold, readOnly true
+   controller munafaController
+   Below hint light purple: "সূত্র: ৫০,০০০ এর ১০% = ৫,০০০ • মাসিক ১০% হার অনুযায়ী স্বয়ংক্রিয় হিসাব" with calculator icon
+
+3) মোট পরিশোধ (অটো) with badge "অটো"
+   TextField READ ONLY: "৳ ৫৫,০০০" - background #EDE7FF, lock icon suffix, controller totalPayableController
+   Below: "লোনের পরিমাণ + মুনাফা = ৫৫,০০০" with check icon
+
+4) কালেকশন টাইপ
+   Dropdown value "মাসিক (১০%)" with down arrow, controller selectedCollectionType
+   Items from munafa_settings table:
+   - মাসিক (১০%) value monthly with blue tick
+   - সাপ্তাহিক (৭%) value weekly
+   - দৈনিক (৫%) value daily
+   onChanged: (value) { setState(()=>selectedCollectionType=value); recalculateMunafa(); }
+
+5) শুরুর তারিখ - NOW DATE LOGIC:
+   TextField READ ONLY with calendar icon suffix
+   Controller: startDateController
+   Initial Value: NOW - আজকের তারিখ অটো
+   
+   In initState:
+   @override
+   void initState(){
+     super.initState();
+     DateTime now = DateTime.now(); // <-- NOW
+     selectedDate = now;
+     List months = ['জানু','ফেব্রু','মার্চ','এপ্রি','মে','জুন','জুলাই','আগ','সেপ্ট','অক্টো','নভে','ডিসে'];
+     String formattedNow = "${now.day} ${months[now.month-1]}, ${now.year}";
+     startDateController = TextEditingController(text: formattedNow);
+     
+     // Load munafa_settings from DB
+     loadMunafaSettings(); // dailyP, weeklyP, monthlyP
+     loanAmountController.addListener(recalculateMunafa);
+   }
+
+   Widget:
+   TextField(
+     controller: startDateController,
+     readOnly: true,
+     decoration: InputDecoration(
+       labelText: "৫) শুরুর তারিখ",
+       suffixIcon: IconButton(
+         icon: Icon(Icons.calendar_month, color: Color(0xFF5B2C83)),
+         onPressed: () async {
+           DateTime? picked = await showDatePicker(
+             context: context,
+             initialDate: selectedDate ?? DateTime.now(), // NOW
+             firstDate: DateTime(2000),
+             lastDate: DateTime(2100),
+             builder: (context, child) => Theme(
+               data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: Color(0xFF5B2C83))),
+               child: child!,
+             ),
+           );
+           if(picked != null){
+             setState((){
+               selectedDate = picked;
+               startDateController.text = "${picked.day} ${['জানু','ফেব্রু','মার্চ','এপ্রি','মে','জুন','জুলাই','আগ','সেপ্ট','অক্টো','নভে','ডিসে'][picked.month-1]}, ${picked.year}";
+             });
+           }
+         },
+       ),
+     ),
+     onTap: same showDatePicker logic as onPressed
+   )
+
+BOTTOM BUTTONS:
+- Left "বাতিল" white outline purple
+- Right "লোন সংরক্ষণ করুন" purple filled + save icon
+
+FOOTER: "নোট: মুনাফার হার মুনাফা সেটিংস থেকে পরিবর্তন করা যাবে।"
+
+--- LOGIC ---
+CREATE TABLE munafa_settings (id INTEGER PRIMARY KEY, type TEXT UNIQUE, percent REAL)
+INSERT INTO munafa_settings VALUES (1,'daily',5.0), (2,'weekly',7.0), (3,'monthly',10.0)
+
+double dailyP=5, weeklyP=7, monthlyP=10 -> load from DB in initState
+
+void recalculateMunafa(){
+  double loan = double.tryParse(loanAmountController.text.replaceAll(',','').replaceAll('৳','').trim()) ?? 0;
+  double percent = selectedCollectionType=='daily'? dailyP : selectedCollectionType=='weekly'? weeklyP : monthlyP;
+  double munafa = loan * percent / 100;
+  double total = loan + munafa;
+  setState((){
+    munafaController.text = munafa.toStringAsFixed(0);
+    totalPayableController.text = total.toStringAsFixed(0);
+  });
+}
+
+On Save: INSERT INTO loans (member_id, loan_amount, munafa, total_payable, collection_type, munafa_percent, start_date = selectedDate.toIso860
+5. আদায় - FIELD WORKER ONLY: show group all member,cearch bar dropdown= name, member no., Select member, show due, enter collected amount, save as draft 
+6. গ্রুপের রিপোর্ট - আদায়ের রিপোর্ট,
+- Date picker: From Date, To Date
+- Table: সদস্য নাম/সদস্য নং dropdown, গ্রুপ নাম dropdown 
+- Total আদায়: সদস্যের নাম, পিতার নাম, আদায়ের শীট দেখাবে, নিচে যোগফল দেখাবে, কত টাকা বকেয়া আছে দেখাবে
+- Only for assigned members
+7. পোস্টিং দিন - FIELD WORKER ONLY: Show drafts, post them, update collection table
+8. ব্যাংক লেনদেন - ADMIN ONLY: 
+   Top card: নতুন ব্যালেন্স = মোট জমা - মোট উত্তোলন
+   2 Tabs: জমা, উত্তোলন
+   Form fields: 
+   Dropdown 1: "ধরণ" Options: মাঠকর্মী, সদস্য
+   Dropdown 2: "নাম" - If ধরণ=মাঠকর্মী show employees table, If ধরণ=সদস্য show members table
+   টাকা, তারিখ
+   Button: লেনদেন সংরক্ষণ করুন
+9. দৈনিক আদায় রিপোর্ট - ADMIN ONLY: Date picker, show total collection, posted vs draft
+10. এক নজরে: Total সদস্য, Total ঋণ, Total আদায়, ব্যাংক ব্যালেন্স
+ব্যাংক লেনদেন - ADMIN ONLY: Top card: নতুন ব্যালেন্স = মোট জমা - মোট উত্তোলন. 2 Tabs: জমা, উত্তোলন. Form fields: Dropdown 1: "ধরণ" Options: মাঠকর্মী, সদস্য. Dropdown 2: "নাম" - If ধরণ=মাঠকর্মী show employees table, If ধরণ=সদস্য show members table. টাকা, তারিখ. Button: লেনদেন সংরক্ষণ করুন
+Packages: sqflite: ^2.3.0, path: ^1.9.0, intl: ^0.19.0
