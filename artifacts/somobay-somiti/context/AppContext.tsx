@@ -15,6 +15,7 @@ export type Member = {
   spouseName: string; birthDate: string; nid: string; mobile: string; groupName: string;
   groupCode: string; groupId?: number; admissionDate: string; comment: string;
   village: string; unionName: string; upazila: string; district: string; photoPath?: string;
+  nomineeName?: string; profession?: string;
 };
 export type Loan = {
   id: number; memberId: number; loanAmount: number; munafa: number; totalPayable: number;

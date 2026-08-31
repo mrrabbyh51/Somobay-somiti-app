@@ -13,7 +13,8 @@ import { Collection, CollectionType, Employee, Group, Member, Role, useApp } fro
 
 type Screen =
   | 'home' | 'groups' | 'employees' | 'members' | 'loans' | 'bank' | 'overview'
-  | 'dailyReport' | 'fieldWorkerDetails' | 'settings' | 'collection' | 'posting' | 'groupReport';
+  | 'dailyReport' | 'fieldWorkerDetails' | 'settings' | 'collection' | 'posting' | 'groupReport'
+  | 'allMembers' | 'memberDetails';
 
 type WorkerCollectionData = {
   fieldWorker: string;
@@ -35,6 +36,7 @@ const today = () => formatLocalDate(new Date());
 const dateFromValue = (value: string) => value ? new Date(`${value}T12:00:00`) : new Date();
 const money = (amount: number) => `৳ ${Math.round(amount).toLocaleString('en-IN')}`;
 const bnNumber = (value: number) => value.toLocaleString('bn-BD');
+const collectionTypeText = (type?: CollectionType) => type === 'daily' ? 'দৈনিক' : type === 'weekly' ? 'সাপ্তাহিক' : type === 'monthly' ? 'মাসিক' : 'নির্ধারিত নয়';
 const webDateInputStyle: React.CSSProperties = {
   flex: 1,
   border: 'none',
@@ -88,8 +90,8 @@ function Field({ label, placeholder, value, onChangeText, secureTextEntry, keybo
   </View>;
 }
 
-function StatCard({ icon, label, value, color = purple }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; value: string; color?: string }) {
-  return <View style={styles.statCard}><View style={[styles.statIcon, { backgroundColor: `${color}18` }]}><Icon name={icon} color={color} size={20} /></View><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+function StatCard({ icon, label, value, color = purple, onPress }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; value: string; color?: string; onPress?: () => void }) {
+  return <Pressable disabled={!onPress} onPress={onPress} style={({ pressed }) => [styles.statCard, pressed && onPress ? styles.pressed : null]}><View style={[styles.statIcon, { backgroundColor: `${color}18` }]}><Icon name={icon} color={color} size={20} /></View><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></Pressable>;
 }
 
 function EmptyState({ icon = 'inbox', title, detail }: { icon?: React.ComponentProps<typeof Feather>['name']; title: string; detail: string }) {
@@ -210,7 +212,7 @@ function MemberScreen({ go }: { go: () => void }) {
   const [form, setForm] = useState(blank); const [photo, setPhoto] = useState<string>(); const [selectedGroup, setSelectedGroup] = useState<Group | null>(null); const [groupSelect, setGroupSelect] = useState(false);
   const update = (key: keyof typeof form, value: string) => setForm((previous) => ({ ...previous, [key]: value }));
   const pick = async (camera: boolean) => { try { const result = camera ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.75 }) : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.75 }); if (!result.canceled) setPhoto(result.assets[0].uri); } catch { Alert.alert('ছবি নেওয়া যায়নি'); } };
-  return <><ScreenShell title="নতুন সদস্য ভর্তি করুন" onBack={go}><View style={styles.memberAvatar}>{photo ? <Image source={{ uri: photo }} style={styles.avatarImage} /> : <Icon name="user" color={purple} size={40} />}</View><View style={styles.photoActions}><Button label="ক্যামেরা" kind="outline" icon="camera" onPress={() => pick(true)} small /><Button label="গ্যালারি" kind="outline" icon="image" onPress={() => pick(false)} small /></View><View style={styles.formCard}>{memberFields.slice(0, 5).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}<MemberDateField label="জন্ম তারিখ" value={form.birthDate} onChange={(value) => update('birthDate', value)} />{memberFields.slice(5, 7).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}<SelectField label="গ্রুপ নির্বাচন করুন" value={selectedGroup ? `${selectedGroup.name} (${selectedGroup.code})` : 'গ্রুপ নির্বাচন করুন'} onPress={() => setGroupSelect(true)} /><Field label="মন্তব্য" placeholder="মন্তব্য লিখুন..." value={form.comment} onChangeText={(value) => update('comment', value)} multiline /><MemberDateField label="ভর্তি তারিখ" value={form.admissionDate} onChange={(value) => update('admissionDate', value)} /><Text style={styles.sectionHeadingSmall}>ঠিকানা</Text><View style={styles.addressGrid}>{memberFields.slice(7).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}</View><View style={styles.dialogButtons}><Button label="বাতিল" kind="outline" onPress={go} /><Button label="সংরক্ষণ" icon="check" onPress={() => { if (!form.memberNo || !form.name) { Alert.alert('সদস্য নং ও নাম লিখুন'); return; } if (!selectedGroup) { Alert.alert('গ্রুপ নির্বাচন করুন', 'সদস্য সংরক্ষণের আগে একটি গ্রুপ নির্বাচন করুন।'); return; } addMember({ ...form, groupName: selectedGroup.name, groupCode: selectedGroup.code, groupId: selectedGroup.id, photoPath: photo }); Alert.alert('সফল', 'সদস্যের তথ্য সংরক্ষণ হয়েছে', [{ text: 'ঠিক আছে', onPress: go }]); }} /></View></View></ScreenShell><SelectModal visible={groupSelect} title="গ্রুপ নির্বাচন করুন" options={groups.map((group) => ({ label: `${group.name} (${group.code})`, value: String(group.id) }))} onClose={() => setGroupSelect(false)} onSelect={(value) => setSelectedGroup(groups.find((group) => String(group.id) === value) ?? null)} /></>;
+  return <><ScreenShell title="নতুন সদস্য ভর্তি করুন" onBack={go}><View style={styles.memberAvatar}>{photo ? <Image source={{ uri: photo }} style={styles.avatarImage} /> : <Icon name="user" color={purple} size={40} />}</View><View style={styles.photoActions}><Button label="ক্যামেরা" kind="outline" icon="camera" onPress={() => pick(true)} small /><Button label="গ্যালারি" kind="outline" icon="image" onPress={() => pick(false)} small /></View><View style={styles.formCard}>{memberFields.slice(0, 5).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key] ?? ''} onChangeText={(value) => update(field.key, value)} />)}<MemberDateField label="জন্ম তারিখ" value={form.birthDate} onChange={(value) => update('birthDate', value)} />{memberFields.slice(5, 7).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key] ?? ''} onChangeText={(value) => update(field.key, value)} />)}<SelectField label="গ্রুপ নির্বাচন করুন" value={selectedGroup ? `${selectedGroup.name} (${selectedGroup.code})` : 'গ্রুপ নির্বাচন করুন'} onPress={() => setGroupSelect(true)} /><Field label="মন্তব্য" placeholder="মন্তব্য লিখুন..." value={form.comment} onChangeText={(value) => update('comment', value)} multiline /><MemberDateField label="ভর্তি তারিখ" value={form.admissionDate} onChange={(value) => update('admissionDate', value)} /><Text style={styles.sectionHeadingSmall}>ঠিকানা</Text><View style={styles.addressGrid}>{memberFields.slice(7).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key] ?? ''} onChangeText={(value) => update(field.key, value)} />)}</View><View style={styles.dialogButtons}><Button label="বাতিল" kind="outline" onPress={go} /><Button label="সংরক্ষণ" icon="check" onPress={() => { if (!form.memberNo || !form.name) { Alert.alert('সদস্য নং ও নাম লিখুন'); return; } if (!selectedGroup) { Alert.alert('গ্রুপ নির্বাচন করুন', 'সদস্য সংরক্ষণের আগে একটি গ্রুপ নির্বাচন করুন।'); return; } addMember({ ...form, groupName: selectedGroup.name, groupCode: selectedGroup.code, groupId: selectedGroup.id, photoPath: photo }); Alert.alert('সফল', 'সদস্যের তথ্য সংরক্ষণ হয়েছে', [{ text: 'ঠিক আছে', onPress: go }]); }} /></View></View></ScreenShell><SelectModal visible={groupSelect} title="গ্রুপ নির্বাচন করুন" options={groups.map((group) => ({ label: `${group.name} (${group.code})`, value: String(group.id) }))} onClose={() => setGroupSelect(false)} onSelect={(value) => setSelectedGroup(groups.find((group) => String(group.id) === value) ?? null)} /></>;
 }
 
 function LoanScreen({ go }: { go: () => void }) {
@@ -453,9 +455,107 @@ function BankScreen({ go }: { go: () => void }) {
   return <><ScreenShell title="ব্যাংক লেনদেন" onBack={go}><View style={styles.balanceCard}><Text style={styles.balanceLabel}>নতুন ব্যালেন্স</Text><Text style={styles.balanceValue}>{money(balance)}</Text><Text style={styles.balanceMeta}>মোট জমা {money(deposited)} · উত্তোলন {money(withdrawn)}</Text></View><View style={styles.segment}><Pressable style={[styles.segmentItem, direction === 'deposit' && styles.segmentActive]} onPress={() => setDirection('deposit')}><Text style={[styles.segmentText, direction === 'deposit' && styles.segmentTextActive]}>জমা</Text></Pressable><Pressable style={[styles.segmentItem, direction === 'withdrawal' && styles.segmentActive]} onPress={() => setDirection('withdrawal')}><Text style={[styles.segmentText, direction === 'withdrawal' && styles.segmentTextActive]}>উত্তোলন</Text></Pressable></View><View style={styles.formCard}><SelectField label="ধরণ" value={source === 'member' ? 'সদস্য' : 'মাঠকর্মী'} onPress={() => { setSource(source === 'member' ? 'employee' : 'member'); setSourceId(''); }} /><SelectField label="নাম" value={(source === 'member' ? members.find((m) => String(m.id) === sourceId)?.name : employees.find((e) => String(e.id) === sourceId)?.name) ?? 'নাম নির্বাচন করুন'} onPress={() => setNameSelect(true)} /><Field label="টাকার পরিমাণ" placeholder="৳ টাকা লিখুন" value={amount} onChangeText={setAmount} keyboardType="numeric" icon="dollar-sign" /><Field label="তারিখ" placeholder="তারিখ" value={date} onChangeText={setDate} icon="calendar" /><Button label="লেনদেন সংরক্ষণ করুন" icon="save" onPress={() => { if (!amount) { Alert.alert('টাকার পরিমাণ লিখুন'); return; } addBankTransaction({ direction, sourceType: source, sourceId: sourceId ? Number(sourceId) : undefined, amount: Number(amount), date }); setAmount(''); Alert.alert('সফল', 'লেনদেন সংরক্ষণ হয়েছে'); }} /></View></ScreenShell><SelectModal visible={nameSelect} title="নাম নির্বাচন করুন" options={(source === 'member' ? members : employees).map((item) => ({ label: `${item.name}`, value: String(item.id) }))} onClose={() => setNameSelect(false)} onSelect={setSourceId} /></>;
 }
 
-function Overview({ go }: { go: () => void }) {
+function Overview({ go, onOpenMembers }: { go: () => void; onOpenMembers: () => void }) {
   const { members, loans, collections, bankTransactions } = useApp(); const totalLoan = loans.reduce((s, l) => s + l.loanAmount, 0); const totalCollection = collections.reduce((s, c) => s + c.amount, 0); const balance = bankTransactions.reduce((s, t) => s + (t.direction === 'deposit' ? t.amount : -t.amount), 0);
-  return <ScreenShell title="এক নজরে" onBack={go}><Text style={styles.pageHeading}>সমিতির সারাংশ</Text><Text style={styles.pageSubheading}>আপনার সমিতির বর্তমান চিত্র</Text><View style={styles.overviewGrid}><StatCard icon="users" label="মোট সদস্য" value={bnNumber(members.length)} /><StatCard icon="credit-card" label="মোট ঋণ" value={money(totalLoan)} color="#2D7FC1" /><StatCard icon="trending-up" label="মোট আদায়" value={money(totalCollection)} color="#198754" /><StatCard icon="briefcase" label="ব্যাংক ব্যালেন্স" value={money(balance)} color="#B44875" /></View><View style={styles.insightCard}><View style={styles.insightIcon}><Icon name="activity" color="#198754" /></View><View><Text style={styles.listTitle}>আজকের আপডেট</Text><Text style={styles.listMeta}>পোস্টেড আদায়: {bnNumber(collections.filter((c) => c.status === 'posted').length)} টি</Text><Text style={styles.listMeta}>ড্রাফট: {bnNumber(collections.filter((c) => c.status === 'draft').length)} টি</Text></View></View></ScreenShell>;
+  return <ScreenShell title="এক নজরে" onBack={go}><Text style={styles.pageHeading}>সমিতির সারাংশ</Text><Text style={styles.pageSubheading}>আপনার সমিতির বর্তমান চিত্র</Text><View style={styles.overviewGrid}><StatCard icon="users" label="মোট সদস্য" value={bnNumber(members.length)} onPress={onOpenMembers} /><StatCard icon="credit-card" label="মোট ঋণ" value={money(totalLoan)} color="#2D7FC1" /><StatCard icon="trending-up" label="মোট আদায়" value={money(totalCollection)} color="#198754" /><StatCard icon="briefcase" label="ব্যাংক ব্যালেন্স" value={money(balance)} color="#B44875" /></View><View style={styles.insightCard}><View style={styles.insightIcon}><Icon name="activity" color="#198754" /></View><View><Text style={styles.listTitle}>আজকের আপডেট</Text><Text style={styles.listMeta}>পোস্টেড আদায়: {bnNumber(collections.filter((c) => c.status === 'posted').length)} টি</Text><Text style={styles.listMeta}>ড্রাফট: {bnNumber(collections.filter((c) => c.status === 'draft').length)} টি</Text></View></View></ScreenShell>;
+}
+
+function MemberInfoCard({ label, value }: { label: string; value: string }) {
+  return <View style={styles.memberInfoCard}><Text style={styles.memberInfoLabel}>{label}</Text><Text style={styles.memberInfoValue}>{value || 'তথ্য নেই'}</Text></View>;
+}
+
+function AllMembersList({ go, onOpenMember }: { go: () => void; onOpenMember: (memberId: number) => void }) {
+  const { members } = useApp();
+  const [query, setQuery] = useState('');
+  const insets = useSafeAreaInsets();
+  const filteredMembers = useMemo(() => {
+    const search = query.trim().toLocaleLowerCase();
+    if (!search) return members;
+    return members.filter((member) => [member.name, member.memberNo, member.groupName, member.groupCode].some((value) => value.toLocaleLowerCase().includes(search)));
+  }, [members, query]);
+
+  return <View style={styles.screen}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 67 : 12) }]}>
+      <Pressable style={styles.headerBack} onPress={go} hitSlop={12}><Icon name="arrow-left" color="#fff" size={22} /></Pressable>
+      <Text style={styles.headerTitle}>সমিতির সকল সদস্য</Text>
+      <View style={styles.headerBack} />
+    </View>
+    <FlatList
+      data={filteredMembers}
+      keyExtractor={(item) => String(item.id)}
+      contentContainerStyle={[styles.memberListContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 34 : 24) }]}
+      ListHeaderComponent={<View><Text style={styles.pageHeading}>সমিতির সকল সদস্য ({bnNumber(members.length)} জন)</Text><View style={styles.memberSearch}><Icon name="search" color={colors.light.mutedForeground} size={18} /><TextInput value={query} onChangeText={setQuery} placeholder="সদস্য খুঁজুন (নাম/নং/গ্রুপ)" placeholderTextColor="#9B8EAA" style={styles.memberSearchInput} /></View><Text style={styles.memberResultText}>{bnNumber(filteredMembers.length)} জন সদস্য পাওয়া গেছে</Text></View>}
+      renderItem={({ item }) => <Pressable onPress={() => onOpenMember(item.id)} style={({ pressed }) => [styles.memberListRow, pressed && styles.pressed]}>
+        <View style={styles.memberListAvatar}>{item.photoPath ? <Image source={{ uri: item.photoPath }} style={styles.memberListImage} /> : <Icon name="user" color={purple} size={24} />}</View>
+        <View style={styles.memberListBody}><Text style={styles.memberListName}>{item.name}</Text><Text style={styles.memberListMeta}>সদস্য নং: {item.memberNo}</Text><Text style={styles.memberListGroup}>{item.groupName || 'গ্রুপ নির্ধারিত নয়'}{item.groupCode ? ` · ${item.groupCode}` : ''}</Text></View>
+        <Icon name="chevron-right" size={20} color={colors.light.mutedForeground} />
+      </Pressable>}
+      ListEmptyComponent={<EmptyState icon="users" title="কোনো সদস্য পাওয়া যায়নি" detail="নাম, সদস্য নং বা গ্রুপ দিয়ে আবার খুঁজুন" />}
+    />
+  </View>;
+}
+
+function MemberDetails({ go, memberId }: { go: () => void; memberId: number }) {
+  const { members, loans, collections, employees } = useApp();
+  const [activeTab, setActiveTab] = useState<'personal' | 'loan'>('personal');
+  const member = members.find((item) => item.id === memberId);
+  const memberLoans = loans.filter((loan) => loan.memberId === memberId).sort((a, b) => b.id - a.id);
+  const selectedLoan = memberLoans[0];
+  const transactions = collections.filter((transaction) => transaction.memberId === memberId).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  const postedTotal = transactions.filter((transaction) => transaction.status === 'posted').reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalCollected = (selectedLoan?.paid ?? 0) + postedTotal;
+  const remaining = selectedLoan ? Math.max(0, selectedLoan.totalPayable - totalCollected) : 0;
+  const collectibleAmount = selectedLoan?.installmentAmount ?? selectedLoan?.collectibleAmount ?? 0;
+  const address = member ? [member.village, member.unionName, member.upazila, member.district].filter(Boolean).join(', ') : '';
+
+  if (!member) return <ScreenShell title="সদস্য বিবরণ" onBack={go}><EmptyState icon="user" title="সদস্যের তথ্য পাওয়া যায়নি" detail="সদস্য তালিকায় ফিরে গিয়ে আবার নির্বাচন করুন" /></ScreenShell>;
+
+  return <ScreenShell title="সদস্য বিবরণ" onBack={go}>
+    <View style={styles.memberProfileHeader}>
+      <View style={styles.memberProfileAvatar}>{member.photoPath ? <Image source={{ uri: member.photoPath }} style={styles.memberProfileImage} /> : <Icon name="user" color={purple} size={34} />}</View>
+      <View style={styles.memberProfileInfo}><Text style={styles.memberProfileName}>{member.name}</Text><Text style={styles.memberProfileMeta}>সদস্য নং: {member.memberNo}</Text><Text style={styles.memberProfileGroup}>{member.groupName || 'গ্রুপ নির্ধারিত নয়'}{member.groupCode ? ` · ${member.groupCode}` : ''}</Text></View>
+    </View>
+    <View style={styles.memberTabs}>
+      <Pressable onPress={() => setActiveTab('personal')} style={[styles.memberTab, activeTab === 'personal' && styles.memberTabActive]}><Text style={[styles.memberTabText, activeTab === 'personal' && styles.memberTabTextActive]}>১. ব্যক্তিগত</Text></Pressable>
+      <Pressable onPress={() => setActiveTab('loan')} style={[styles.memberTab, activeTab === 'loan' && styles.memberTabActive]}><Text style={[styles.memberTabText, activeTab === 'loan' && styles.memberTabTextActive]}>২. ঋণ বিবরণ</Text></Pressable>
+    </View>
+    {activeTab === 'personal'
+      ? <View style={styles.memberInfoList}>
+        <Text style={styles.sectionHeadingSmall}>ব্যক্তিগত তথ্য</Text>
+        <MemberInfoCard label="নাম" value={member.name} />
+        <MemberInfoCard label="পিতার নাম" value={member.fatherName} />
+        <MemberInfoCard label="স্বামী/স্ত্রীর নাম" value={member.spouseName} />
+        <MemberInfoCard label="মাতার নাম" value={member.motherName} />
+        <MemberInfoCard label="NID" value={member.nid} />
+        <MemberInfoCard label="মোবাইল" value={member.mobile} />
+        <MemberInfoCard label="জন্ম তারিখ" value={member.birthDate} />
+        <MemberInfoCard label="ভর্তি তারিখ" value={member.admissionDate} />
+        <MemberInfoCard label="গ্রুপ নাম" value={member.groupName} />
+        <MemberInfoCard label="গ্রুপ কোড" value={member.groupCode} />
+        <MemberInfoCard label="ঠিকানা" value={address} />
+        <MemberInfoCard label="মন্তব্য" value={member.comment} />
+        <MemberInfoCard label="নমিনি" value={member.nomineeName ?? ''} />
+        <MemberInfoCard label="পেশা" value={member.profession ?? ''} />
+      </View>
+      : <View style={styles.memberInfoList}>
+        <Text style={styles.sectionHeadingSmall}>ঋণ বিতরণ তথ্য</Text>
+        {selectedLoan ? <View style={styles.loanDetailsCard}>
+          <MemberInfoCard label="ঋণের পরিমাণ" value={money(selectedLoan.loanAmount)} />
+          <MemberInfoCard label="আদায় যোগ্য" value={`${money(collectibleAmount)} (${collectionTypeText(selectedLoan.collectionType)})`} />
+          <MemberInfoCard label="কালেকশন টাইপ" value={collectionTypeText(selectedLoan.collectionType)} />
+          <MemberInfoCard label="বিতরণ তারিখ" value={selectedLoan.startDate} />
+          <MemberInfoCard label="মুনাফা" value={`${bnNumber(selectedLoan.munafaPercent)}% · ${money(selectedLoan.munafa)}`} />
+          <MemberInfoCard label="মোট পরিশোধযোগ্য" value={money(selectedLoan.totalPayable)} />
+        </View> : <EmptyState icon="credit-card" title="কোনো ঋণের তথ্য নেই" detail="এই সদস্যের জন্য এখনো কোনো ঋণ বিতরণ করা হয়নি" />}
+        <Text style={styles.sectionHeadingSmall}>আদায় ইতিহাস</Text>
+        {transactions.length === 0 ? <EmptyState icon="clock" title="কোনো আদায় ইতিহাস নেই" detail="এই সদস্যের আদায় এখানে দেখা যাবে" /> : transactions.map((transaction) => {
+          const collector = transaction.employeeId ? employees.find((employee) => employee.id === transaction.employeeId)?.name : undefined;
+          const transactionLoan = loans.find((loan) => loan.memberId === memberId && loan.collectionType === transaction.collectionType) ?? selectedLoan;
+          return <View key={transaction.id} style={styles.collectionHistoryRow}><View style={styles.collectionHistoryInfo}><Text style={styles.collectionHistoryTitle}>{transaction.date} · {collector ?? 'মাঠকর্মী নির্ধারিত নয়'}</Text><Text style={styles.collectionHistoryMeta}>{collectionTypeText(transaction.collectionType ?? transactionLoan?.collectionType)}{transaction.status === 'draft' ? ' · ড্রাফট' : ' · পোস্টেড'}</Text></View><Text style={transaction.status === 'posted' ? styles.amountGreen : styles.amountDue}>{money(transaction.amount)}</Text></View>;
+        })}
+        <View style={styles.memberSummaryCard}><Text style={styles.memberSummaryTitle}>হিসাবের সারাংশ</Text><Text style={styles.memberSummaryText}>মোট আদায়: <Text style={styles.memberSummaryGreen}>{money(totalCollected)}</Text>  ·  বাকি: <Text style={styles.memberSummaryDue}>{money(remaining)}</Text></Text></View>
+      </View>}
+  </ScreenShell>;
 }
 
 function DailyReport({ go, onOpenWorker }: { go: () => void; onOpenWorker: (workerData: WorkerCollectionData) => void }) {
@@ -507,7 +607,7 @@ function Settings({ go }: { go: () => void }) {
 }
 
 export default function Index() {
-  const { currentUser, hydrated, login, logout } = useApp(); const [screen, setScreen] = useState<Screen>('home'); const [selectedWorker, setSelectedWorker] = useState<WorkerCollectionData | null>(null);
+  const { currentUser, hydrated, login, logout } = useApp(); const [screen, setScreen] = useState<Screen>('home'); const [selectedWorker, setSelectedWorker] = useState<WorkerCollectionData | null>(null); const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   if (!hydrated) return <View style={styles.loading}><ActivityIndicator size="large" color={purple} /><Text style={styles.loadingText}>অ্যাপ প্রস্তুত হচ্ছে...</Text></View>;
   if (!currentUser) return <Login onLogin={(role, username, password) => { if (!login(username, password, role)) Alert.alert('লগইন ব্যর্থ', 'ইউজারনেম বা পাসওয়ার্ড সঠিক নয়'); }} />;
   const go = (next: Screen) => setScreen(next);
@@ -518,7 +618,9 @@ export default function Index() {
   if (screen === 'members') return <MemberScreen go={back} />;
   if (screen === 'loans') return <LoanScreen go={back} />;
   if (screen === 'bank') return <BankScreen go={back} />;
-  if (screen === 'overview') return <Overview go={back} />;
+  if (screen === 'overview') return <Overview go={back} onOpenMembers={() => go('allMembers')} />;
+  if (screen === 'allMembers') return <AllMembersList go={back} onOpenMember={(memberId) => { setSelectedMemberId(memberId); go('memberDetails'); }} />;
+  if (screen === 'memberDetails' && selectedMemberId !== null) return <MemberDetails memberId={selectedMemberId} go={() => go('allMembers')} />;
   if (screen === 'dailyReport') return <DailyReport go={back} onOpenWorker={(workerData) => { setSelectedWorker(workerData); go('fieldWorkerDetails'); }} />;
   if (screen === 'fieldWorkerDetails' && selectedWorker) return <FieldWorkerCollectionDetails workerData={selectedWorker} go={() => go('dailyReport')} />;
   if (screen === 'settings') return <Settings go={back} />;
@@ -539,7 +641,7 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 10 }, statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#EEE8F4', minHeight: 104 }, statIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 9 }, statValue: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 16 }, statLabel: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 3 },
   sectionHeading: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 18, marginTop: 2 }, sectionHeadingSmall: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 16, marginTop: 3, marginBottom: 6 }, menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 }, menuCard: { backgroundColor: '#fff', borderRadius: 17, padding: 14, width: '48%', minHeight: 141, borderWidth: 1, borderColor: '#EEE8F4' }, menuIcon: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }, menuLabel: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 13 }, menuDetail: { fontFamily: 'Inter_400Regular', color: colors.light.mutedForeground, fontSize: 11, marginTop: 5, lineHeight: 15 }, 'menuCard > Feather': { position: 'absolute', right: 11, bottom: 13 },
   tipCard: { backgroundColor: '#EDE7FF', padding: 13, borderRadius: 13, flexDirection: 'row', gap: 9, alignItems: 'center' }, tipText: { flex: 1, color: purple, fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 17 },
-  pageHeading: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 21 }, pageSubheading: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: -9 }, listHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }, titleWithIcon: { flexDirection: 'row', alignItems: 'center', gap: 10 }, miniCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: purple, alignItems: 'center', justifyContent: 'center' }, countText: { color: colors.light.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 13 }, listCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }, listIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center' }, listBody: { flex: 1 }, listTitle: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 15 }, listMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, verticalActions: { gap: 14, alignItems: 'center' }, employeeAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' },
+  pageHeading: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 21 }, pageSubheading: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: -9 }, listHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }, titleWithIcon: { flexDirection: 'row', alignItems: 'center', gap: 10 }, miniCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: purple, alignItems: 'center', justifyContent: 'center' }, countText: { color: colors.light.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 13 }, listCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }, listIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center' }, listBody: { flex: 1 }, listTitle: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 15 }, listMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, verticalActions: { gap: 14, alignItems: 'center' }, employeeAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' }, memberListContent: { padding: 18, gap: 12 }, memberSearch: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderRadius: 12, borderWidth: 1, borderColor: '#D9CBEA', backgroundColor: '#EDE7FF', marginTop: 15 }, memberSearchInput: { flex: 1, color: colors.light.foreground, fontFamily: 'Inter_400Regular', fontSize: 14, paddingVertical: 11 }, memberResultText: { color: colors.light.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 12, marginBottom: 2 }, memberListRow: { backgroundColor: '#fff', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 11 }, memberListAvatar: { width: 55, height: 55, borderRadius: 28, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, memberListImage: { width: '100%', height: '100%' }, memberListBody: { flex: 1 }, memberListName: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 16 }, memberListMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, memberListGroup: { color: purple, fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 4 }, memberProfileHeader: { backgroundColor: '#fff', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 13 }, memberProfileAvatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, memberProfileImage: { width: '100%', height: '100%' }, memberProfileInfo: { flex: 1 }, memberProfileName: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 20 }, memberProfileMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 5 }, memberProfileGroup: { color: purple, fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 5 }, memberTabs: { backgroundColor: '#EDE7F6', borderRadius: 25, padding: 4, flexDirection: 'row', marginTop: 2 }, memberTab: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 21 }, memberTabActive: { backgroundColor: '#fff' }, memberTabText: { color: colors.light.mutedForeground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }, memberTabTextActive: { color: purple }, memberInfoList: { gap: 9 }, memberInfoCard: { backgroundColor: '#fff', borderRadius: 13, padding: 13, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, memberInfoLabel: { color: colors.light.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 0.8 }, memberInfoValue: { color: colors.light.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13, textAlign: 'right', flex: 1.2 }, loanDetailsCard: { gap: 9 }, collectionHistoryRow: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#EEE8F4', padding: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, collectionHistoryInfo: { flex: 1 }, collectionHistoryTitle: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 13 }, collectionHistoryMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, memberSummaryCard: { backgroundColor: '#E9F7EE', borderRadius: 14, padding: 15, marginTop: 5 }, memberSummaryTitle: { color: '#176B39', fontFamily: 'Inter_700Bold', fontSize: 14 }, memberSummaryText: { color: colors.light.foreground, fontFamily: 'Inter_500Medium', fontSize: 13, marginTop: 7 }, memberSummaryGreen: { color: '#198754', fontFamily: 'Inter_700Bold' }, memberSummaryDue: { color: '#B76B00', fontFamily: 'Inter_700Bold' },
   fieldWorkerCard: { backgroundColor: '#fff', borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#EEE8F4', marginBottom: 10 }, fieldWorkerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, fieldWorkerIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }, fieldWorkerAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: purple, alignItems: 'center', justifyContent: 'center' }, fieldWorkerAvatarText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 19 }, fieldWorkerInfo: { flex: 1 }, fieldWorkerName: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 16 }, fieldWorkerMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, fieldWorkerAmountWrap: { alignItems: 'flex-end' }, fieldWorkerAmount: { color: '#0B8A42', fontFamily: 'Inter_700Bold', fontSize: 16 }, fieldWorkerLink: { color: purple, fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 5 },
   workerSummaryCard: { backgroundColor: purple, borderRadius: 20, padding: 18 }, workerSummaryLabel: { color: '#DCC9FF', fontFamily: 'Inter_500Medium', fontSize: 12 }, workerSummaryName: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 6 }, workerSummaryStats: { flexDirection: 'row', gap: 10, marginTop: 18 }, workerSummaryStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 12, padding: 12 }, workerSummaryStatLabel: { color: '#DCC9FF', fontFamily: 'Inter_400Regular', fontSize: 11 }, workerSummaryStatValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17, marginTop: 5 }, memberRow: { backgroundColor: '#fff', borderRadius: 15, padding: 12, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }, workerMemberAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, workerMemberImage: { width: '100%', height: '100%' }, workerMemberInfo: { flex: 1 }, workerMemberName: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 14 }, workerMemberGroup: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, workerMemberAmount: { color: '#198754', fontFamily: 'Inter_700Bold', fontSize: 14 },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 70, paddingHorizontal: 22 }, emptyIcon: { width: 66, height: 66, borderRadius: 22, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }, emptyTitle: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 17 }, emptyDetail: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', marginTop: 7, lineHeight: 19 },
