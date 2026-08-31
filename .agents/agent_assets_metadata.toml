@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "s1tvcpwTSnCbnbkYjkE8Q"
+uri = "file://artifacts/somobay-somiti/somobay-somiti-dist.zip"
+type = "unspecified"
+title = "সমবায় সমিতি — Web dist ZIP"
+description = "Expo web export prepared for Vercel or Netlify deployment. Upload the contents of the dist folder, or use dist as the output directory."
+logical_id = "cdd02164-9f40-4a2d-bc6c-c55aa3f31b3f"
+content_hash = "sha256:212b88c12dc300b9d397cd03102885b3ccbc11f71a3a63947699fb5b8e6a677a"
+size = 5845858
+mtime_ms = 1788144729818
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:a6e875ba-cacf-47d7-9dc8-f4627b677530/cdd02164-9f40-4a2d-bc6c-c55aa3f31b3f/fe6ee4f2-99db-4a40-9390-a3b8ba2e7a99"
+storage_version_token = "1788144736261786"
+content_type = "application/octet-stream"
