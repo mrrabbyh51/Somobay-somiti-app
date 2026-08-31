@@ -1,7 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import React, { useMemo, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -22,6 +23,12 @@ type WorkerCollectionData = {
   transactions: Collection[];
 };
 
+type GroupReportListItem = {
+  member: Member;
+  amount: number;
+  date?: string;
+};
+
 const purple = colors.light.primary;
 const formatLocalDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const today = () => formatLocalDate(new Date());
@@ -37,6 +44,13 @@ const webDateInputStyle: React.CSSProperties = {
   fontFamily: 'Inter_400Regular',
   fontSize: 14,
   padding: 0,
+};
+const webHiddenDateInputStyle: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  opacity: 0,
+  pointerEvents: 'none',
 };
 
 function Icon({ name, size = 20, color = purple }: { name: React.ComponentProps<typeof Feather>['name']; size?: number; color?: string }) {
@@ -216,9 +230,134 @@ function PostingScreen({ go }: { go: () => void }) {
   return <ScreenShell title="পোস্টিং দিন" onBack={go}><Text style={styles.pageHeading}>ড্রাফট আদায়</Text><Text style={styles.pageSubheading}>যাচাই করে পোস্ট করলে হিসাবের অন্তর্ভুক্ত হবে</Text>{drafts.length === 0 ? <EmptyState icon="send" title="কোনো ড্রাফট নেই" detail="আদায় স্ক্রিন থেকে নতুন ড্রাফট তৈরি করুন" /> : drafts.map((item) => <View key={item.id} style={styles.postCard}><View style={styles.listIcon}><Icon name="file-text" color={purple} /></View><View style={styles.listBody}><Text style={styles.listTitle}>{members.find((m) => m.id === item.memberId)?.name ?? 'সদস্য'}</Text><Text style={styles.listMeta}>{item.date} · {money(item.amount)}</Text></View><Button label="পোস্ট" icon="send" small onPress={() => { postCollection(item.id); Alert.alert('পোস্ট হয়েছে', 'আদায়ের হিসাব পোস্ট করা হয়েছে'); }} /></View>)}</ScreenShell>;
 }
 
+function GroupReportDateField({ label, value, onChange, showPicker, setShowPicker }: { label: string; value: Date; onChange: (value: Date) => void; showPicker: boolean; setShowPicker: (value: boolean) => void }) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dateValue = formatLocalDate(value);
+  const openWebPicker = () => {
+    try {
+      inputRef.current?.click();
+    } catch {
+      // Some browsers do not expose a programmatic date picker.
+    }
+  };
+
+  if (Platform.OS === 'web') {
+    return <View style={styles.dateChipWebWrap}>
+      <Pressable onPress={openWebPicker} style={({ pressed }) => [styles.dateChip, pressed && styles.pressed]}>
+        <Icon name="calendar" size={17} color={purple} />
+        <Text numberOfLines={1} style={styles.dateChipText}>{label}: {value.toLocaleDateString('bn-BD')}</Text>
+      </Pressable>
+      <input
+        ref={inputRef}
+        aria-label={label}
+        type="date"
+        value={dateValue}
+        onChange={(event) => {
+          const nextValue = event.currentTarget.value;
+          if (nextValue) onChange(dateFromValue(nextValue));
+        }}
+        style={webHiddenDateInputStyle}
+      />
+    </View>;
+  }
+
+  return <View>
+    <Pressable onPress={() => setShowPicker(true)} style={({ pressed }) => [styles.dateChip, pressed && styles.pressed]}>
+      <Icon name="calendar" size={17} color={purple} />
+      <Text numberOfLines={1} style={styles.dateChipText}>{label}: {value.toLocaleDateString('bn-BD')}</Text>
+    </Pressable>
+    {showPicker && <DateTimePicker
+      value={value}
+      mode="date"
+      display="default"
+      onChange={(_, date) => {
+        setShowPicker(false);
+        if (date) onChange(date);
+      }}
+    />}
+  </View>;
+}
+
 function GroupReport({ go }: { go: () => void }) {
-  const { collections, members } = useApp(); const total = collections.filter((c) => c.status === 'posted').reduce((sum, c) => sum + c.amount, 0);
-  return <ScreenShell title="গ্রুপের রিপোর্ট" onBack={go}><View style={styles.reportHero}><Text style={styles.reportLabel}>মোট পোস্টেড আদায়</Text><Text style={styles.reportValue}>{money(total)}</Text><Text style={styles.reportMeta}>{bnNumber(collections.filter((c) => c.status === 'posted').length)} টি লেনদেন</Text></View><View style={styles.filterRow}><Button label="থেকে: আজ" kind="soft" icon="calendar" small onPress={() => undefined} /><Button label="পর্যন্ত: আজ" kind="soft" icon="calendar" small onPress={() => undefined} /></View><Text style={styles.sectionHeadingSmall}>সদস্যভিত্তিক শীট</Text>{collections.filter((c) => c.status === 'posted').map((item) => <View key={item.id} style={styles.listCard}><View style={styles.listBody}><Text style={styles.listTitle}>{members.find((m) => m.id === item.memberId)?.name ?? 'সদস্য'}</Text><Text style={styles.listMeta}>সদস্য নং: {members.find((m) => m.id === item.memberId)?.memberNo ?? '—'} · {item.date}</Text></View><Text style={styles.amountGreen}>{money(item.amount)}</Text></View>)}{collections.filter((c) => c.status === 'posted').length === 0 && <EmptyState icon="bar-chart-2" title="এখনও কোনো পোস্টেড আদায় নেই" detail="পোস্টিং সম্পন্ন হলে রিপোর্ট এখানে দেখা যাবে" />}</ScreenShell>;
+  const { collections, groups, loans, members } = useApp();
+  const [fromDate, setFromDate] = useState(new Date());
+  const [toDate, setToDate] = useState(new Date());
+  const [showFrom, setShowFrom] = useState(false);
+  const [showTo, setShowTo] = useState(false);
+  const [filterType, setFilterType] = useState<'collected' | 'due'>('collected');
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [groupSelect, setGroupSelect] = useState(false);
+  const activeGroupId = selectedGroupId ?? groups[0]?.id;
+  const selectedGroup = groups.find((group) => group.id === activeGroupId);
+  const groupMembers = useMemo(() => members.filter((member) => member.groupId === activeGroupId), [members, activeGroupId]);
+  const fromKey = formatLocalDate(fromDate);
+  const toKey = formatLocalDate(toDate);
+  const filteredTransactions = useMemo(
+    () => collections.filter((collection) => collection.status === 'posted' && collection.date >= fromKey && collection.date <= toKey && groupMembers.some((member) => member.id === collection.memberId)),
+    [collections, fromKey, toKey, groupMembers],
+  );
+  const collectedMembers = useMemo(() => {
+    const transactionsByMember = new Map<number, Collection[]>();
+    filteredTransactions.forEach((transaction) => {
+      const previous = transactionsByMember.get(transaction.memberId) ?? [];
+      transactionsByMember.set(transaction.memberId, [...previous, transaction]);
+    });
+    return groupMembers.flatMap((member) => {
+      const transactions = transactionsByMember.get(member.id);
+      if (!transactions?.length) return [];
+      return [{
+        member,
+        amount: transactions.reduce((sum, transaction) => sum + transaction.amount, 0),
+        date: transactions.reduce((latest, transaction) => transaction.date > latest ? transaction.date : latest, transactions[0].date),
+      }];
+    });
+  }, [filteredTransactions, groupMembers]);
+  const dueMembers = useMemo(() => {
+    const collectedIds = new Set(filteredTransactions.map((transaction) => transaction.memberId));
+    return groupMembers.filter((member) => !collectedIds.has(member.id)).map((member) => {
+      const loan = loans.find((item) => item.memberId === member.id);
+      return { member, dueAmount: Math.max(0, (loan?.totalPayable ?? 0) - (loan?.paid ?? 0)) };
+    });
+  }, [filteredTransactions, groupMembers, loans]);
+  const total = filteredTransactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const displayList: GroupReportListItem[] = filterType === 'collected'
+    ? collectedMembers
+    : dueMembers.map(({ member, dueAmount }) => ({ member, amount: dueAmount }));
+
+  return <><ScreenShell title="গ্রুপের রিপোর্ট" onBack={go}>
+    <View style={styles.reportHero}>
+      <Text style={styles.reportLabel}>{selectedGroup ? `${selectedGroup.name} · মোট আদায়` : 'মোট আদায়'}</Text>
+      <Text style={styles.reportValue}>{money(total)}</Text>
+      <Text style={styles.reportMeta}>{bnNumber(filteredTransactions.length)} টি লেনদেন · {bnNumber(groupMembers.length)} জন সদস্য</Text>
+    </View>
+    {groups.length === 0
+      ? <View style={styles.reportGroupEmpty}><Icon name="users" color={purple} size={17} /><Text style={styles.reportGroupEmptyText}>রিপোর্ট দেখতে আগে একটি গ্রুপ তৈরি করুন</Text></View>
+      : <SelectField label="গ্রুপ নির্বাচন" value={selectedGroup ? `${selectedGroup.name} · ${selectedGroup.code}` : 'গ্রুপ নির্বাচন করুন'} onPress={() => setGroupSelect(true)} />}
+    <View style={styles.reportFilterRow}>
+      <View style={styles.reportDatePair}>
+        <GroupReportDateField label="থেকে" value={fromDate} onChange={setFromDate} showPicker={showFrom} setShowPicker={setShowFrom} />
+        <GroupReportDateField label="পর্যন্ত" value={toDate} onChange={setToDate} showPicker={showTo} setShowPicker={setShowTo} />
+      </View>
+      <View style={styles.dropdownContainer}>
+        <Picker selectedValue={filterType} onValueChange={(value) => setFilterType(value as 'collected' | 'due')} style={styles.reportPicker}>
+          <Picker.Item label="আদায়" value="collected" />
+          <Picker.Item label="বাকি" value="due" />
+        </Picker>
+      </View>
+    </View>
+    <Text style={styles.sectionHeadingSmall}>{filterType === 'collected' ? 'আদায় করা সদস্য' : 'বাকি থাকা সদস্য'}</Text>
+    {displayList.length === 0
+      ? <EmptyState icon={filterType === 'collected' ? 'check-circle' : 'clock'} title={filterType === 'collected' ? 'এই সময়ে কোনো আদায় নেই' : 'কোনো বাকি সদস্য নেই'} detail={filterType === 'collected' ? 'নির্বাচিত তারিখে পোস্টেড আদায় এখানে দেখা যাবে' : 'নির্বাচিত সময়ে সব সদস্যের আদায় পাওয়া গেছে'} />
+      : displayList.map((item) => <View key={item.member.id} style={styles.listCard}>
+        <View style={styles.employeeAvatar}>{item.member.photoPath ? <Image source={{ uri: item.member.photoPath }} style={styles.avatarImage} /> : <Icon name="user" color={purple} size={21} />}</View>
+        <View style={styles.listBody}>
+          <Text style={styles.listTitle}>{item.member.name}</Text>
+          <Text style={styles.listMeta}>সদস্য নং: {item.member.memberNo} · {selectedGroup?.name ?? item.member.groupName}</Text>
+          <Text style={styles.listMeta}>{filterType === 'collected' ? `শেষ আদায়: ${item.date ?? '—'}` : 'নির্বাচিত সময়ে আদায় হয়নি'}</Text>
+        </View>
+        <Text style={filterType === 'collected' ? styles.amountGreen : styles.amountDue}>{money(item.amount)}</Text>
+      </View>)}
+  </ScreenShell><SelectModal visible={groupSelect} title="গ্রুপ নির্বাচন করুন" options={groups.map((group) => ({ label: `${group.name} · ${group.code}`, value: String(group.id) }))} onClose={() => setGroupSelect(false)} onSelect={(value) => setSelectedGroupId(Number(value))} /></>;
 }
 
 function BankScreen({ go }: { go: () => void }) {
@@ -322,7 +461,7 @@ const styles = StyleSheet.create({
   dialog: { width: '88%', backgroundColor: '#fff', borderRadius: 22, padding: 20, maxHeight: '85%' }, dialogLarge: { width: '94%', backgroundColor: '#fff', borderRadius: 22, padding: 20, maxHeight: '90%' }, dialogTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }, dialogTitle: { color: purple, fontFamily: 'Inter_700Bold', fontSize: 18, flex: 1 }, modalBackdrop: { flex: 1, backgroundColor: 'rgba(26, 11, 40, 0.48)', alignItems: 'center', justifyContent: 'center' }, sheet: { position: 'absolute', bottom: 0, width: '100%', backgroundColor: '#fff', padding: 20, paddingBottom: 28, borderTopLeftRadius: 25, borderTopRightRadius: 25 }, sheetHandle: { alignSelf: 'center', width: 42, height: 4, borderRadius: 2, backgroundColor: '#D7CCDF', marginBottom: 18 }, sheetTitle: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 19, marginBottom: 14 }, optionRow: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0EBF4', flexDirection: 'row', justifyContent: 'space-between' }, optionText: { color: colors.light.foreground, fontFamily: 'Inter_500Medium', fontSize: 15 },
   profilePreview: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#C8B6FF', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, profileImage: { width: '100%', height: '100%' }, memberAvatar: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#D1C4E9', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: purple, overflow: 'hidden' }, photoActions: { flexDirection: 'row', justifyContent: 'center', gap: 9, marginVertical: 15 }, dialogButtons: { flexDirection: 'row', gap: 10, marginTop: 8 }, 'dialogButtons > Button': { flex: 1 }, formCard: { backgroundColor: '#fff', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#EEE8F4' }, addressGrid: { gap: 0 }, loanIntro: { backgroundColor: purple, borderRadius: 17, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, loanBankIcon: { width: 43, height: 43, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, loanIntroTitle: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16 }, loanIntroText: { color: '#EBDDFF', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 3 }, autoField: { marginBottom: 13 }, autoLabel: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 7 }, autoBadge: { backgroundColor: '#E4D8FF', color: purple, fontFamily: 'Inter_700Bold', fontSize: 10, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 }, autoValue: { minHeight: 49, borderRadius: 11, backgroundColor: '#E2DEE5', paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, autoValueText: { color: '#5E5662', fontFamily: 'Inter_700Bold', fontSize: 17 }, totalText: { color: purple, fontFamily: 'Inter_700Bold', fontSize: 17 }, helperText: { color: purple, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 6 }, formNote: { color: purple, fontFamily: 'Inter_500Medium', fontSize: 11, lineHeight: 17, marginVertical: 3 },
   dueCard: { backgroundColor: '#FFF4DC', borderRadius: 14, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }, dueLabel: { color: '#8B6B29', fontFamily: 'Inter_500Medium', fontSize: 12 }, dueValue: { color: '#85500A', fontFamily: 'Inter_700Bold', fontSize: 21, marginTop: 4 }, dueBadge: { flexDirection: 'row', gap: 5, alignItems: 'center', backgroundColor: '#FFE6A8', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 }, dueBadgeText: { color: '#8B5B00', fontFamily: 'Inter_600SemiBold', fontSize: 11 }, selectHint: { backgroundColor: '#F7F2FC', borderRadius: 12, padding: 13, flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 14 }, selectHintText: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 },
-  postCard: { backgroundColor: '#fff', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 10 }, amountGreen: { color: '#198754', fontFamily: 'Inter_700Bold', fontSize: 14 }, reportHero: { backgroundColor: purple, borderRadius: 19, padding: 20 }, reportLabel: { color: '#DCC9FF', fontFamily: 'Inter_500Medium', fontSize: 12 }, reportValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 29, marginTop: 9 }, reportMeta: { color: '#EBDDFF', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 5 }, filterRow: { flexDirection: 'row', gap: 9 }, balanceCard: { backgroundColor: '#2B154A', borderRadius: 20, padding: 21 }, balanceLabel: { color: '#DCC9FF', fontFamily: 'Inter_500Medium', fontSize: 12 }, balanceValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 29, marginTop: 8 }, balanceMeta: { color: '#EBDDFF', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 7 }, segment: { backgroundColor: '#EDE7FF', borderRadius: 12, padding: 4, flexDirection: 'row' }, segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9 }, segmentActive: { backgroundColor: '#fff' }, segmentText: { color: colors.light.mutedForeground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }, segmentTextActive: { color: purple }, overviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 }, 'overviewGrid > View': { width: '48%' }, insightCard: { backgroundColor: '#E9F7EE', borderRadius: 16, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'center' }, insightIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#D2F0DC', alignItems: 'center', justifyContent: 'center' }, settingsHeader: { flexDirection: 'row', gap: 12, alignItems: 'center' }, settingsIcon: { width: 49, height: 49, backgroundColor: purple, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, rateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0EBF4' }, rateLabel: { color: colors.light.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14 }, rateInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE7FF', borderRadius: 9, paddingHorizontal: 10, width: 84 }, rateTextInput: { flex: 1, paddingVertical: 8, color: purple, fontFamily: 'Inter_700Bold', textAlign: 'right' }, percent: { color: purple, fontFamily: 'Inter_700Bold', marginLeft: 4 },
+  postCard: { backgroundColor: '#fff', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 10 }, amountGreen: { color: '#198754', fontFamily: 'Inter_700Bold', fontSize: 14 }, amountDue: { color: '#B76B00', fontFamily: 'Inter_700Bold', fontSize: 14 }, reportHero: { backgroundColor: purple, borderRadius: 19, padding: 20 }, reportLabel: { color: '#DCC9FF', fontFamily: 'Inter_500Medium', fontSize: 12 }, reportValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 29, marginTop: 9 }, reportMeta: { color: '#EBDDFF', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 5 }, filterRow: { flexDirection: 'row', gap: 9 }, reportGroupEmpty: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F7F2FC', borderRadius: 12, padding: 13 }, reportGroupEmptyText: { flex: 1, color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }, reportFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -3 }, reportDatePair: { flex: 1, flexDirection: 'row', gap: 7 }, dateChipWebWrap: { flex: 1, position: 'relative' }, dateChip: { minHeight: 43, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, borderRadius: 11, borderWidth: 1, borderColor: '#D9CBEA', backgroundColor: '#EDE7FF', flex: 1 }, dateChipText: { flex: 1, color: purple, fontFamily: 'Inter_500Medium', fontSize: 11 }, dropdownContainer: { width: 105, minHeight: 43, overflow: 'hidden', borderRadius: 11, borderWidth: 1, borderColor: '#D9CBEA', backgroundColor: '#EDE7FF', justifyContent: 'center' }, reportPicker: { width: 125, height: 43, color: purple, fontFamily: 'Inter_600SemiBold' }, balanceCard: { backgroundColor: '#2B154A', borderRadius: 20, padding: 21 }, balanceLabel: { color: '#DCC9FF', fontFamily: 'Inter_500Medium', fontSize: 12 }, balanceValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 29, marginTop: 8 }, balanceMeta: { color: '#EBDDFF', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 7 }, segment: { backgroundColor: '#EDE7FF', borderRadius: 12, padding: 4, flexDirection: 'row' }, segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9 }, segmentActive: { backgroundColor: '#fff' }, segmentText: { color: colors.light.mutedForeground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }, segmentTextActive: { color: purple }, overviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 }, 'overviewGrid > View': { width: '48%' }, insightCard: { backgroundColor: '#E9F7EE', borderRadius: 16, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'center' }, insightIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#D2F0DC', alignItems: 'center', justifyContent: 'center' }, settingsHeader: { flexDirection: 'row', gap: 12, alignItems: 'center' }, settingsIcon: { width: 49, height: 49, backgroundColor: purple, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, rateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0EBF4' }, rateLabel: { color: colors.light.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14 }, rateInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE7FF', borderRadius: 9, paddingHorizontal: 10, width: 84 }, rateTextInput: { flex: 1, paddingVertical: 8, color: purple, fontFamily: 'Inter_700Bold', textAlign: 'right' }, percent: { color: purple, fontFamily: 'Inter_700Bold', marginLeft: 4 },
   loginScreen: { flex: 1, backgroundColor: '#2B154A', overflow: 'hidden' }, loginGlow: { position: 'absolute', width: 330, height: 330, borderRadius: 165, backgroundColor: '#5B2C83', opacity: 0.55, right: -110, top: -80 }, loginContent: { flex: 1, paddingHorizontal: 22, paddingTop: 100, alignItems: 'center' }, brandMark: { width: 72, height: 72, borderRadius: 24, backgroundColor: '#5B2C83', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#8760B3' }, brandTitle: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 29, marginTop: 16 }, brandSubtitle: { color: '#DCC9FF', fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 5 }, loginPrompt: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 16, marginTop: 65, marginBottom: 17 }, roleRow: { flexDirection: 'row', gap: 12, width: '100%' }, roleCard: { flex: 1, borderRadius: 17, padding: 15, minHeight: 159, borderWidth: 1 }, roleAdmin: { backgroundColor: '#fff', borderColor: '#fff' }, roleField: { backgroundColor: '#F2FCF5', borderColor: '#B8E6C7' }, roleIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }, roleTitle: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 14 }, roleHint: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 5 }, loginNote: { flexDirection: 'row', gap: 7, alignItems: 'center', marginTop: 28 }, loginNoteText: { color: '#B9A8C8', fontFamily: 'Inter_400Regular', fontSize: 12 }, loginForm: { marginTop: 52, width: '100%', backgroundColor: '#fff', borderRadius: 21, padding: 19 }, changeRole: { flexDirection: 'row', gap: 6, alignItems: 'center', marginBottom: 20 }, changeRoleText: { color: purple, fontFamily: 'Inter_600SemiBold', fontSize: 12 }, formHeading: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 21, marginBottom: 19 }, errorText: { color: '#C65353', fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: -3, marginBottom: 11 }, demoText: { textAlign: 'center', color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 14 },
   calendarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }, calendarMonth: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 16 }, weekRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 9 }, weekDay: { width: '14%', textAlign: 'center', color: colors.light.mutedForeground, fontFamily: 'Inter_600SemiBold', fontSize: 11 }, calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' }, dayCell: { width: '14.28%', height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 }, daySelected: { backgroundColor: purple }, dayText: { color: colors.light.foreground, fontFamily: 'Inter_500Medium', fontSize: 13 }, dayTextSelected: { color: '#fff', fontFamily: 'Inter_700Bold' },
 });
