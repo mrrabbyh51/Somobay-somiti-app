@@ -8,15 +8,23 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '@/constants/colors';
-import { CollectionType, Employee, Group, Member, Role, useApp } from '@/context/AppContext';
+import { Collection, CollectionType, Employee, Group, Member, Role, useApp } from '@/context/AppContext';
 
 type Screen =
   | 'home' | 'groups' | 'employees' | 'members' | 'loans' | 'bank' | 'overview'
-  | 'dailyReport' | 'settings' | 'collection' | 'posting' | 'groupReport';
+  | 'dailyReport' | 'fieldWorkerDetails' | 'settings' | 'collection' | 'posting' | 'groupReport';
+
+type WorkerCollectionData = {
+  fieldWorker: string;
+  employeeId?: number;
+  totalMembers: number;
+  totalAmount: number;
+  transactions: Collection[];
+};
 
 const purple = colors.light.primary;
-const today = () => new Date().toISOString().slice(0, 10);
 const formatLocalDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const today = () => formatLocalDate(new Date());
 const dateFromValue = (value: string) => value ? new Date(`${value}T12:00:00`) : new Date();
 const money = (amount: number) => `৳ ${Math.round(amount).toLocaleString('en-IN')}`;
 const bnNumber = (value: number) => value.toLocaleString('bn-BD');
@@ -224,9 +232,47 @@ function Overview({ go }: { go: () => void }) {
   return <ScreenShell title="এক নজরে" onBack={go}><Text style={styles.pageHeading}>সমিতির সারাংশ</Text><Text style={styles.pageSubheading}>আপনার সমিতির বর্তমান চিত্র</Text><View style={styles.overviewGrid}><StatCard icon="users" label="মোট সদস্য" value={bnNumber(members.length)} /><StatCard icon="credit-card" label="মোট ঋণ" value={money(totalLoan)} color="#2D7FC1" /><StatCard icon="trending-up" label="মোট আদায়" value={money(totalCollection)} color="#198754" /><StatCard icon="briefcase" label="ব্যাংক ব্যালেন্স" value={money(balance)} color="#B44875" /></View><View style={styles.insightCard}><View style={styles.insightIcon}><Icon name="activity" color="#198754" /></View><View><Text style={styles.listTitle}>আজকের আপডেট</Text><Text style={styles.listMeta}>পোস্টেড আদায়: {bnNumber(collections.filter((c) => c.status === 'posted').length)} টি</Text><Text style={styles.listMeta}>ড্রাফট: {bnNumber(collections.filter((c) => c.status === 'draft').length)} টি</Text></View></View></ScreenShell>;
 }
 
-function DailyReport({ go }: { go: () => void }) {
-  const { collections, members } = useApp(); const todayItems = collections.filter((c) => c.date === today()); const posted = todayItems.filter((c) => c.status === 'posted').reduce((s, c) => s + c.amount, 0); const draft = todayItems.filter((c) => c.status === 'draft').reduce((s, c) => s + c.amount, 0);
-  return <ScreenShell title="দৈনিক আদায় রিপোর্ট" onBack={go}><View style={styles.reportHero}><Text style={styles.reportLabel}>আজকের মোট আদায়</Text><Text style={styles.reportValue}>{money(posted + draft)}</Text><Text style={styles.reportMeta}>{today()}</Text></View><View style={styles.statsRow}><StatCard icon="check-circle" label="পোস্টেড" value={money(posted)} color="#198754" /><StatCard icon="clock" label="ড্রাফট" value={money(draft)} color="#B76B00" /></View><Text style={styles.sectionHeadingSmall}>আজকের লেনদেন</Text>{todayItems.length === 0 ? <EmptyState icon="calendar" title="আজ কোনো আদায় নেই" detail="মাঠকর্মীর সংগ্রহ এখানে দেখা যাবে" /> : todayItems.map((item) => <View key={item.id} style={styles.listCard}><View style={styles.listBody}><Text style={styles.listTitle}>{members.find((m) => m.id === item.memberId)?.name ?? 'সদস্য'}</Text><Text style={styles.listMeta}>{item.status === 'posted' ? 'পোস্টেড' : 'ড্রাফট'}</Text></View><Text style={styles.amountGreen}>{money(item.amount)}</Text></View>)}</ScreenShell>;
+function DailyReport({ go, onOpenWorker }: { go: () => void; onOpenWorker: (workerData: WorkerCollectionData) => void }) {
+  const { collections, employees } = useApp();
+  const todayItems = collections.filter((collection) => collection.date === today());
+  const posted = todayItems.filter((collection) => collection.status === 'posted').reduce((sum, collection) => sum + collection.amount, 0);
+  const draft = todayItems.filter((collection) => collection.status === 'draft').reduce((sum, collection) => sum + collection.amount, 0);
+  const workerGroups = useMemo<WorkerCollectionData[]>(() => {
+    const grouped = new Map<string, WorkerCollectionData>();
+    todayItems.forEach((transaction) => {
+      const employee = employees.find((item) => item.id === transaction.employeeId);
+      const workerKey = transaction.employeeId ? `employee-${transaction.employeeId}` : 'unassigned';
+      const fieldWorker = employee?.name ?? 'মাঠকর্মী নির্ধারিত নয়';
+      const existing = grouped.get(workerKey);
+      if (existing) {
+        existing.transactions.push(transaction);
+        existing.totalAmount += transaction.amount;
+        existing.totalMembers = new Set(existing.transactions.map((item) => item.memberId)).size;
+      } else {
+        grouped.set(workerKey, {
+          fieldWorker,
+          employeeId: transaction.employeeId,
+          totalMembers: 1,
+          totalAmount: transaction.amount,
+          transactions: [transaction],
+        });
+      }
+    });
+    return Array.from(grouped.values());
+  }, [todayItems, employees]);
+
+  return <ScreenShell title="দৈনিক আদায় রিপোর্ট" onBack={go}><View style={styles.reportHero}><Text style={styles.reportLabel}>আজকের মোট আদায়</Text><Text style={styles.reportValue}>{money(posted + draft)}</Text><Text style={styles.reportMeta}>{today()}</Text></View><View style={styles.statsRow}><StatCard icon="check-circle" label="পোস্টেড" value={money(posted)} color="#198754" /><StatCard icon="clock" label="ড্রাফট" value={money(draft)} color="#B76B00" /></View><Text style={styles.sectionHeadingSmall}>আজকের লেনদেন</Text>{workerGroups.length === 0 ? <EmptyState icon="calendar" title="আজ কোনো আদায় নেই" detail="মাঠকর্মীর সংগ্রহ এখানে দেখা যাবে" /> : workerGroups.map((item) => <Pressable key={item.employeeId ?? 'unassigned'} style={({ pressed }) => [styles.fieldWorkerCard, pressed && styles.pressed]} onPress={() => onOpenWorker(item)}><View style={styles.fieldWorkerTopRow}><View style={styles.fieldWorkerIdentity}><View style={styles.fieldWorkerAvatar}><Text style={styles.fieldWorkerAvatarText}>{item.fieldWorker.charAt(0)}</Text></View><View style={styles.fieldWorkerInfo}><Text style={styles.fieldWorkerName}>{item.fieldWorker}</Text><Text style={styles.fieldWorkerMeta}>{bnNumber(item.totalMembers)} জন সদস্য থেকে আদায়</Text></View></View><View style={styles.fieldWorkerAmountWrap}><Text style={styles.fieldWorkerAmount}>{money(item.totalAmount)}</Text><Text style={styles.fieldWorkerLink}>বিস্তারিত দেখুন →</Text></View></View></Pressable>)}</ScreenShell>;
+}
+
+function FieldWorkerCollectionDetails({ go, workerData }: { go: () => void; workerData: WorkerCollectionData }) {
+  const { members } = useApp();
+  const memberTransactions = workerData.transactions.map((transaction) => ({
+    transaction,
+    member: members.find((item) => item.id === transaction.memberId),
+  }));
+  const insets = useSafeAreaInsets();
+
+  return <View style={styles.screen}><View style={[styles.header, { paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 67 : 12) }]}><Pressable style={styles.headerBack} onPress={go} hitSlop={12}><Icon name="arrow-left" color="#fff" size={22} /></Pressable><Text style={styles.headerTitle}>{workerData.fieldWorker} এর আজকের আদায়</Text><View style={styles.headerBack} /></View><FlatList data={memberTransactions} keyExtractor={(item) => String(item.transaction.id)} contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 34 : 24) }]} ListHeaderComponent={<><View style={styles.workerSummaryCard}><Text style={styles.workerSummaryLabel}>মাঠকর্মী</Text><Text style={styles.workerSummaryName}>{workerData.fieldWorker}</Text><View style={styles.workerSummaryStats}><View style={styles.workerSummaryStat}><Text style={styles.workerSummaryStatLabel}>আজ আদায়</Text><Text style={styles.workerSummaryStatValue}>{bnNumber(workerData.totalMembers)} জন</Text></View><View style={styles.workerSummaryStat}><Text style={styles.workerSummaryStatLabel}>মোট</Text><Text style={styles.workerSummaryStatValue}>{money(workerData.totalAmount)}</Text></View></View></View><Text style={styles.sectionHeadingSmall}>সদস্যভিত্তিক আদায়</Text></>} renderItem={({ item }) => <View style={styles.memberRow}><View style={styles.workerMemberAvatar}>{item.member?.photoPath ? <Image source={{ uri: item.member.photoPath }} style={styles.workerMemberImage} /> : <Icon name="user" color={purple} size={22} />}</View><View style={styles.workerMemberInfo}><Text style={styles.workerMemberName}>{item.member?.name ?? 'সদস্যের তথ্য পাওয়া যায়নি'}</Text><Text style={styles.workerMemberGroup}>{item.member?.groupName ?? 'গ্রুপ নির্ধারিত নয়'}</Text></View><Text style={styles.workerMemberAmount}>{money(item.transaction.amount)}</Text></View>} ListEmptyComponent={<EmptyState icon="users" title="কোনো সদস্যের তথ্য নেই" detail="এই মাঠকর্মীর আজকের লেনদেনে সদস্য পাওয়া যায়নি" />} /></View>;
 }
 
 function Settings({ go }: { go: () => void }) {
@@ -235,7 +281,7 @@ function Settings({ go }: { go: () => void }) {
 }
 
 export default function Index() {
-  const { currentUser, hydrated, login, logout } = useApp(); const [screen, setScreen] = useState<Screen>('home');
+  const { currentUser, hydrated, login, logout } = useApp(); const [screen, setScreen] = useState<Screen>('home'); const [selectedWorker, setSelectedWorker] = useState<WorkerCollectionData | null>(null);
   if (!hydrated) return <View style={styles.loading}><ActivityIndicator size="large" color={purple} /><Text style={styles.loadingText}>অ্যাপ প্রস্তুত হচ্ছে...</Text></View>;
   if (!currentUser) return <Login onLogin={(role, username, password) => { if (!login(username, password, role)) Alert.alert('লগইন ব্যর্থ', 'ইউজারনেম বা পাসওয়ার্ড সঠিক নয়'); }} />;
   const go = (next: Screen) => setScreen(next);
@@ -247,7 +293,8 @@ export default function Index() {
   if (screen === 'loans') return <LoanScreen go={back} />;
   if (screen === 'bank') return <BankScreen go={back} />;
   if (screen === 'overview') return <Overview go={back} />;
-  if (screen === 'dailyReport') return <DailyReport go={back} />;
+  if (screen === 'dailyReport') return <DailyReport go={back} onOpenWorker={(workerData) => { setSelectedWorker(workerData); go('fieldWorkerDetails'); }} />;
+  if (screen === 'fieldWorkerDetails' && selectedWorker) return <FieldWorkerCollectionDetails workerData={selectedWorker} go={() => go('dailyReport')} />;
   if (screen === 'settings') return <Settings go={back} />;
   if (screen === 'collection') return <CollectionScreen go={back} />;
   if (screen === 'posting') return <PostingScreen go={back} />;
@@ -267,6 +314,8 @@ const styles = StyleSheet.create({
   sectionHeading: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 18, marginTop: 2 }, sectionHeadingSmall: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 16, marginTop: 3, marginBottom: 6 }, menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 }, menuCard: { backgroundColor: '#fff', borderRadius: 17, padding: 14, width: '48%', minHeight: 141, borderWidth: 1, borderColor: '#EEE8F4' }, menuIcon: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }, menuLabel: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 13 }, menuDetail: { fontFamily: 'Inter_400Regular', color: colors.light.mutedForeground, fontSize: 11, marginTop: 5, lineHeight: 15 }, 'menuCard > Feather': { position: 'absolute', right: 11, bottom: 13 },
   tipCard: { backgroundColor: '#EDE7FF', padding: 13, borderRadius: 13, flexDirection: 'row', gap: 9, alignItems: 'center' }, tipText: { flex: 1, color: purple, fontFamily: 'Inter_500Medium', fontSize: 12, lineHeight: 17 },
   pageHeading: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 21 }, pageSubheading: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: -9 }, listHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }, titleWithIcon: { flexDirection: 'row', alignItems: 'center', gap: 10 }, miniCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: purple, alignItems: 'center', justifyContent: 'center' }, countText: { color: colors.light.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 13 }, listCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }, listIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center' }, listBody: { flex: 1 }, listTitle: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 15 }, listMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, verticalActions: { gap: 14, alignItems: 'center' }, employeeAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' },
+  fieldWorkerCard: { backgroundColor: '#fff', borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#EEE8F4', marginBottom: 10 }, fieldWorkerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, fieldWorkerIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }, fieldWorkerAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: purple, alignItems: 'center', justifyContent: 'center' }, fieldWorkerAvatarText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 19 }, fieldWorkerInfo: { flex: 1 }, fieldWorkerName: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 16 }, fieldWorkerMeta: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, fieldWorkerAmountWrap: { alignItems: 'flex-end' }, fieldWorkerAmount: { color: '#0B8A42', fontFamily: 'Inter_700Bold', fontSize: 16 }, fieldWorkerLink: { color: purple, fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 5 },
+  workerSummaryCard: { backgroundColor: purple, borderRadius: 20, padding: 18 }, workerSummaryLabel: { color: '#DCC9FF', fontFamily: 'Inter_500Medium', fontSize: 12 }, workerSummaryName: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 6 }, workerSummaryStats: { flexDirection: 'row', gap: 10, marginTop: 18 }, workerSummaryStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 12, padding: 12 }, workerSummaryStatLabel: { color: '#DCC9FF', fontFamily: 'Inter_400Regular', fontSize: 11 }, workerSummaryStatValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17, marginTop: 5 }, memberRow: { backgroundColor: '#fff', borderRadius: 15, padding: 12, borderWidth: 1, borderColor: '#EEE8F4', flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }, workerMemberAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, workerMemberImage: { width: '100%', height: '100%' }, workerMemberInfo: { flex: 1 }, workerMemberName: { color: colors.light.foreground, fontFamily: 'Inter_700Bold', fontSize: 14 }, workerMemberGroup: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }, workerMemberAmount: { color: '#198754', fontFamily: 'Inter_700Bold', fontSize: 14 },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 70, paddingHorizontal: 22 }, emptyIcon: { width: 66, height: 66, borderRadius: 22, backgroundColor: '#EDE7FF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }, emptyTitle: { fontFamily: 'Inter_700Bold', color: colors.light.foreground, fontSize: 17 }, emptyDetail: { color: colors.light.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center', marginTop: 7, lineHeight: 19 },
   button: { minHeight: 48, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, gap: 8, backgroundColor: purple }, button_outline: { backgroundColor: '#fff', borderWidth: 1, borderColor: purple }, button_soft: { backgroundColor: '#EDE7FF' }, button_danger: { backgroundColor: '#C65353' }, buttonSmall: { minHeight: 36, borderRadius: 10, paddingHorizontal: 11 }, buttonText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }, buttonTextDark: { color: purple }, buttonTextSmall: { fontSize: 12 }, pressed: { opacity: 0.72, transform: [{ scale: 0.985 }] }, disabled: { opacity: 0.45 },
   fieldWrap: { gap: 7, marginBottom: 12 }, fieldLabel: { color: '#554964', fontFamily: 'Inter_600SemiBold', fontSize: 13 }, inputShell: { minHeight: 48, borderRadius: 11, borderWidth: 1, borderColor: '#D9CBEA', backgroundColor: '#EDE7FF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, input: { flex: 1, color: colors.light.foreground, fontFamily: 'Inter_400Regular', fontSize: 14, paddingVertical: 11 }, inputMulti: { minHeight: 82, alignItems: 'flex-start' }, inputReadOnly: { backgroundColor: '#F1EDF5' }, selectText: { flex: 1, color: colors.light.foreground, fontFamily: 'Inter_400Regular', fontSize: 14 }, placeholder: { color: '#9B8EAA' },
