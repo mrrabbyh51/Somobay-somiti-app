@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform,
@@ -15,8 +16,20 @@ type Screen =
 
 const purple = colors.light.primary;
 const today = () => new Date().toISOString().slice(0, 10);
+const formatLocalDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const dateFromValue = (value: string) => value ? new Date(`${value}T12:00:00`) : new Date();
 const money = (amount: number) => `৳ ${Math.round(amount).toLocaleString('en-IN')}`;
 const bnNumber = (value: number) => value.toLocaleString('bn-BD');
+const webDateInputStyle: React.CSSProperties = {
+  flex: 1,
+  border: 'none',
+  outline: 'none',
+  backgroundColor: 'transparent',
+  color: colors.light.foreground,
+  fontFamily: 'Inter_400Regular',
+  fontSize: 14,
+  padding: 0,
+};
 
 function Icon({ name, size = 20, color = purple }: { name: React.ComponentProps<typeof Feather>['name']; size?: number; color?: string }) {
   return <Feather name={name} size={size} color={color} />;
@@ -127,21 +140,55 @@ function SelectField({ label, value, onPress }: { label: string; value: string; 
   return <View style={styles.fieldWrap}><Text style={styles.fieldLabel}>{label}</Text><Pressable style={styles.inputShell} onPress={onPress}><Text style={[styles.selectText, value.includes('নির্বাচন') && styles.placeholder]}>{value}</Text><Icon name="chevron-down" color={colors.light.mutedForeground} /></Pressable></View>;
 }
 
+function MemberDateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const [showPicker, setShowPicker] = useState(false);
+  if (Platform.OS === 'web') {
+    return <View style={styles.fieldWrap}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.inputShell}>
+        <Icon name="calendar" size={18} color={colors.light.mutedForeground} />
+        <input
+          aria-label={label}
+          type="date"
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          style={webDateInputStyle}
+        />
+      </View>
+    </View>;
+  }
+  return <View style={styles.fieldWrap}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <Pressable style={styles.inputShell} onPress={() => setShowPicker(true)}>
+      <Icon name="calendar" size={18} color={colors.light.mutedForeground} />
+      <Text style={styles.selectText}>{value || `${label} নির্বাচন করুন`}</Text>
+    </Pressable>
+    {showPicker && <DateTimePicker
+      value={dateFromValue(value)}
+      mode="date"
+      display="default"
+      onChange={(_, date) => {
+        setShowPicker(false);
+        if (date) onChange(formatLocalDate(date));
+      }}
+    />}
+  </View>;
+}
+
 const memberFields: { key: keyof Omit<Member, 'id' | 'groupId' | 'photoPath'>; label: string; placeholder: string }[] = [
   { key: 'memberNo', label: 'সদস্য নং', placeholder: 'যেমন: 00123' }, { key: 'name', label: 'নাম', placeholder: 'সদস্যের নাম লিখুন' },
   { key: 'fatherName', label: 'পিতার নাম', placeholder: 'পিতার নাম লিখুন' }, { key: 'motherName', label: 'মাতার নাম', placeholder: 'মাতার নাম লিখুন' },
   { key: 'spouseName', label: 'স্বামী/স্ত্রী', placeholder: 'স্বামী/স্ত্রীর নাম লিখুন' }, { key: 'nid', label: 'NID', placeholder: 'জাতীয় পরিচয়পত্র নম্বর লিখুন' },
-  { key: 'mobile', label: 'মোবাইল', placeholder: '01XXXXXXXXX' }, { key: 'groupName', label: 'গ্রুপ নাম', placeholder: 'গ্রুপের নাম লিখুন' },
-  { key: 'groupCode', label: 'গ্রুপ কোড', placeholder: 'গ্রুপ কোড লিখুন' }, { key: 'comment', label: 'মন্তব্য', placeholder: 'মন্তব্য লিখুন...' },
+  { key: 'mobile', label: 'মোবাইল', placeholder: '01XXXXXXXXX' }, { key: 'comment', label: 'মন্তব্য', placeholder: 'মন্তব্য লিখুন...' },
   { key: 'village', label: 'গ্রাম', placeholder: 'গ্রামের নাম লিখুন' }, { key: 'unionName', label: 'ইউনিয়ন', placeholder: 'ইউনিয়নের নাম লিখুন' },
   { key: 'upazila', label: 'উপজেলা', placeholder: 'উপজেলার নাম লিখুন' }, { key: 'district', label: 'জেলা', placeholder: 'জেলার নাম লিখুন' },
 ];
 function MemberScreen({ go }: { go: () => void }) {
   const { groups, addMember } = useApp(); const blank: Omit<Member, 'id' | 'groupId' | 'photoPath'> = { memberNo: '', name: '', fatherName: '', motherName: '', spouseName: '', birthDate: '', nid: '', mobile: '', groupName: '', groupCode: '', admissionDate: today(), comment: '', village: '', unionName: '', upazila: '', district: '' };
-  const [form, setForm] = useState(blank); const [photo, setPhoto] = useState<string>(); const [dateKind, setDateKind] = useState<'birth' | 'admission' | null>(null);
+  const [form, setForm] = useState(blank); const [photo, setPhoto] = useState<string>(); const [selectedGroup, setSelectedGroup] = useState<Group | null>(null); const [groupSelect, setGroupSelect] = useState(false);
   const update = (key: keyof typeof form, value: string) => setForm((previous) => ({ ...previous, [key]: value }));
   const pick = async (camera: boolean) => { try { const result = camera ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.75 }) : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.75 }); if (!result.canceled) setPhoto(result.assets[0].uri); } catch { Alert.alert('ছবি নেওয়া যায়নি'); } };
-  return <ScreenShell title="নতুন সদস্য ভর্তি করুন" onBack={go}><View style={styles.memberAvatar}>{photo ? <Image source={{ uri: photo }} style={styles.avatarImage} /> : <Icon name="user" color={purple} size={40} />}</View><View style={styles.photoActions}><Button label="ক্যামেরা" kind="outline" icon="camera" onPress={() => pick(true)} small /><Button label="গ্যালারি" kind="outline" icon="image" onPress={() => pick(false)} small /></View><View style={styles.formCard}>{memberFields.slice(0, 5).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}<Pressable onPress={() => setDateKind('birth')}><Field label="জন্ম তারিখ" placeholder="জন্ম তারিখ নির্বাচন করুন" value={form.birthDate} readOnly icon="calendar" /></Pressable>{memberFields.slice(5, 10).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} multiline={field.key === 'comment'} />)}<Pressable onPress={() => setDateKind('admission')}><Field label="ভর্তি তারিখ" placeholder="ভর্তি তারিখ নির্বাচন করুন" value={form.admissionDate} readOnly icon="calendar" /></Pressable><Text style={styles.sectionHeadingSmall}>ঠিকানা</Text><View style={styles.addressGrid}>{memberFields.slice(10).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}</View><View style={styles.dialogButtons}><Button label="বাতিল" kind="outline" onPress={go} /><Button label="সংরক্ষণ" icon="check" onPress={() => { if (!form.memberNo || !form.name) { Alert.alert('সদস্য নং ও নাম লিখুন'); return; } const group = groups.find((item) => item.name === form.groupName || item.code === form.groupCode); addMember({ ...form, groupId: group?.id, photoPath: photo }); Alert.alert('সফল', 'সদস্যের তথ্য সংরক্ষণ হয়েছে', [{ text: 'ঠিক আছে', onPress: go }]); }} /></View></View></ScreenShell>;
+  return <><ScreenShell title="নতুন সদস্য ভর্তি করুন" onBack={go}><View style={styles.memberAvatar}>{photo ? <Image source={{ uri: photo }} style={styles.avatarImage} /> : <Icon name="user" color={purple} size={40} />}</View><View style={styles.photoActions}><Button label="ক্যামেরা" kind="outline" icon="camera" onPress={() => pick(true)} small /><Button label="গ্যালারি" kind="outline" icon="image" onPress={() => pick(false)} small /></View><View style={styles.formCard}>{memberFields.slice(0, 5).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}<MemberDateField label="জন্ম তারিখ" value={form.birthDate} onChange={(value) => update('birthDate', value)} />{memberFields.slice(5, 7).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}<SelectField label="গ্রুপ নির্বাচন করুন" value={selectedGroup ? `${selectedGroup.name} (${selectedGroup.code})` : 'গ্রুপ নির্বাচন করুন'} onPress={() => setGroupSelect(true)} /><Field label="মন্তব্য" placeholder="মন্তব্য লিখুন..." value={form.comment} onChangeText={(value) => update('comment', value)} multiline /><MemberDateField label="ভর্তি তারিখ" value={form.admissionDate} onChange={(value) => update('admissionDate', value)} /><Text style={styles.sectionHeadingSmall}>ঠিকানা</Text><View style={styles.addressGrid}>{memberFields.slice(7).map((field) => <Field key={field.key} label={field.label} placeholder={field.placeholder} value={form[field.key]} onChangeText={(value) => update(field.key, value)} />)}</View><View style={styles.dialogButtons}><Button label="বাতিল" kind="outline" onPress={go} /><Button label="সংরক্ষণ" icon="check" onPress={() => { if (!form.memberNo || !form.name) { Alert.alert('সদস্য নং ও নাম লিখুন'); return; } if (!selectedGroup) { Alert.alert('গ্রুপ নির্বাচন করুন', 'সদস্য সংরক্ষণের আগে একটি গ্রুপ নির্বাচন করুন।'); return; } addMember({ ...form, groupName: selectedGroup.name, groupCode: selectedGroup.code, groupId: selectedGroup.id, photoPath: photo }); Alert.alert('সফল', 'সদস্যের তথ্য সংরক্ষণ হয়েছে', [{ text: 'ঠিক আছে', onPress: go }]); }} /></View></View></ScreenShell><SelectModal visible={groupSelect} title="গ্রুপ নির্বাচন করুন" options={groups.map((group) => ({ label: `${group.name} (${group.code})`, value: String(group.id) }))} onClose={() => setGroupSelect(false)} onSelect={(value) => setSelectedGroup(groups.find((group) => String(group.id) === value) ?? null)} /></>;
 }
 
 function LoanScreen({ go }: { go: () => void }) {
