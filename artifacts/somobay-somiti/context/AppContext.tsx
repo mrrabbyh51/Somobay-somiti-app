@@ -19,10 +19,13 @@ export type Member = {
 export type Loan = {
   id: number; memberId: number; loanAmount: number; munafa: number; totalPayable: number;
   collectionType: CollectionType; munafaPercent: number; startDate: string; paid: number;
+  installmentAmount?: number; collectibleAmount?: number;
 };
 export type Collection = {
   id: number; memberId: number; employeeId?: number; amount: number; date: string;
-  status: 'draft' | 'posted';
+  status: 'draft' | 'posted'; collectionType?: CollectionType; memberName?: string;
+  memberPhoto?: string; loanAmount?: number; totalCollectedSoFar?: number;
+  remaining?: number; todayCollection?: number;
 };
 export type BankTransaction = {
   id: number; direction: 'deposit' | 'withdrawal'; sourceType: 'employee' | 'member';
@@ -41,6 +44,7 @@ type Store = {
   addLoan: (loan: Omit<Loan, 'id' | 'paid'>) => void;
   addCollection: (collection: Omit<Collection, 'id' | 'status'>, status?: Collection['status']) => void;
   postCollection: (id: number) => void;
+  postCollections: (ids: number[]) => void;
   addBankTransaction: (transaction: Omit<BankTransaction, 'id'>) => void;
   updateMunafa: (type: CollectionType, percent: number) => void;
 };
@@ -105,6 +109,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...previous, collections: [...previous.collections, { ...collection, id: nextId(previous.collections), status }],
     })),
     postCollection: (id) => setData((previous) => ({ ...previous, collections: previous.collections.map((item) => item.id === id ? { ...item, status: 'posted' } : item) })),
+    postCollections: (ids) => setData((previous) => {
+      const idSet = new Set(ids);
+      return { ...previous, collections: previous.collections.map((item) => idSet.has(item.id) ? { ...item, status: 'posted' } : item) };
+    }),
     addBankTransaction: (transaction) => setData((previous) => ({ ...previous, bankTransactions: [...previous.bankTransactions, { ...transaction, id: nextId(previous.bankTransactions) }] })),
     updateMunafa: (type, percent) => setData((previous) => ({ ...previous, munafa: { ...previous.munafa, [type]: percent } })),
   }), [data, hydrated, currentUser]);
