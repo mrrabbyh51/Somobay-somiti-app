@@ -20,7 +20,7 @@ export type Member = {
 export type Loan = {
   id: number; memberId: number; loanAmount: number; munafa: number; totalPayable: number;
   collectionType: CollectionType; munafaPercent: number; startDate: string; paid: number;
-  installmentAmount?: number; collectibleAmount?: number;
+  installmentAmount?: number; collectibleAmount?: number; duration?: string;
 };
 export type Collection = {
   id: number; memberId: number; employeeId?: number; amount: number; date: string;
@@ -41,8 +41,11 @@ type Store = {
   login: (username: string, password: string, role: Role) => boolean;
   logout: () => void; changeAdminPassword: (oldPassword: string, newPassword: string) => boolean;
   addGroup: (name: string, code: string, id?: number) => void; deleteGroup: (id: number) => void;
-  addEmployee: (employee: Omit<Employee, 'id'>) => void; addMember: (member: Omit<Member, 'id'>) => void;
-  addLoan: (loan: Omit<Loan, 'id' | 'paid'>) => void;
+  addEmployee: (employee: Omit<Employee, 'id'>) => void; updateEmployee: (id: number, employee: Partial<Omit<Employee, 'id'>>) => void; deleteEmployee: (id: number) => void;
+  addMember: (member: Omit<Member, 'id'>) => boolean;
+  addLoan: (loan: Omit<Loan, 'id' | 'paid'>) => boolean;
+  updateMember: (id: number, member: Partial<Omit<Member, 'id'>>) => void;
+  updateLoan: (id: number, loan: Partial<Omit<Loan, 'id'>>) => void;
   addCollection: (collection: Omit<Collection, 'id' | 'status'>, status?: Collection['status']) => void;
   postCollection: (id: number) => void;
   postCollections: (ids: number[]) => void;
@@ -55,7 +58,7 @@ const emptyData = {
   users: [
     { id: 1, username: 'admin', password: '123456', role: 'admin' as Role },
     { id: 2, username: 'field', password: '1234', role: 'field_worker' as Role },
-  ],
+  ] as User[],
   groups: [] as Group[], employees: [] as Employee[], members: [] as Member[],
   loans: [] as Loan[], collections: [] as Collection[], bankTransactions: [] as BankTransaction[],
   munafa: { daily: 5, weekly: 7, monthly: 10 } as MunafaSettings,
@@ -104,8 +107,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...previous, employees: [...previous.employees, { ...employee, id: nextId(previous.employees) }],
       users: [...previous.users, { id: nextId(previous.users), username: employee.username, password: employee.password, role: 'field_worker', employeeId: nextId(previous.employees) }],
     })),
-    addMember: (member) => setData((previous) => ({ ...previous, members: [...previous.members, { ...member, id: nextId(previous.members) }] })),
-    addLoan: (loan) => setData((previous) => ({ ...previous, loans: [...previous.loans, { ...loan, id: nextId(previous.loans), paid: 0 }] })),
+    updateEmployee: (id, employee) => setData((previous) => ({
+      ...previous,
+      employees: previous.employees.map((item) => item.id === id ? { ...item, ...employee, id } : item),
+      users: previous.users.map((user) => user.employeeId === id ? { ...user, username: employee.username ?? user.username, password: employee.password ?? user.password } : user),
+    })),
+    deleteEmployee: (id) => setData((previous) => ({
+      ...previous,
+      employees: previous.employees.filter((item) => item.id !== id),
+      users: previous.users.filter((user) => user.employeeId !== id),
+    })),
+    addMember: (member) => {
+      setData((previous) => ({ ...previous, members: [...previous.members, { ...member, id: nextId(previous.members) }] }));
+      return true;
+    },
+    addLoan: (loan) => {
+      setData((previous) => ({ ...previous, loans: [...previous.loans, { ...loan, id: nextId(previous.loans), paid: 0 }] }));
+      return true;
+    },
+    updateMember: (id, member) => setData((previous) => ({ ...previous, members: previous.members.map((item) => item.id === id ? { ...item, ...member, id } : item) })),
+    updateLoan: (id, loan) => setData((previous) => ({ ...previous, loans: previous.loans.map((item) => item.id === id ? { ...item, ...loan, id } : item) })),
     addCollection: (collection, status = 'draft') => setData((previous) => ({
       ...previous, collections: [...previous.collections, { ...collection, id: nextId(previous.collections), status }],
     })),
