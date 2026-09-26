@@ -49,6 +49,7 @@ type Store = {
   addCollection: (collection: Omit<Collection, 'id' | 'status'>, status?: Collection['status']) => void;
   postCollection: (id: number) => void;
   postCollections: (ids: number[]) => void;
+  deleteCollection: (id: number) => void;
   addBankTransaction: (transaction: Omit<BankTransaction, 'id'>) => void;
   updateMunafa: (type: CollectionType, percent: number) => void;
 };
@@ -135,6 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const idSet = new Set(ids);
       return { ...previous, collections: previous.collections.map((item) => idSet.has(item.id) ? { ...item, status: 'posted' } : item) };
     }),
+    deleteCollection: (id) => setData((previous) => ({ ...previous, collections: previous.collections.filter((item) => item.id !== id) })),
     addBankTransaction: (transaction) => setData((previous) => ({ ...previous, bankTransactions: [...previous.bankTransactions, { ...transaction, id: nextId(previous.bankTransactions) }] })),
     updateMunafa: (type, percent) => setData((previous) => ({ ...previous, munafa: { ...previous.munafa, [type]: percent } })),
   }), [data, hydrated, currentUser]);

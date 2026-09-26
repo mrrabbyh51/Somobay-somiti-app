@@ -360,8 +360,9 @@ function CollectionScreen({ go }: { go: () => void }) {
 }
 
 function PostingScreen({ go }: { go: () => void }) {
-  const { collections, members, postCollection } = useApp(); const drafts = collections.filter((c) => c.status === 'draft');
-  return <ScreenShell title="পোস্টিং দিন" onBack={go}><Text style={styles.pageHeading}>ড্রাফট আদায়</Text><Text style={styles.pageSubheading}>যাচাই করে পোস্ট করলে হিসাবের অন্তর্ভুক্ত হবে</Text>{drafts.length === 0 ? <EmptyState icon="send" title="কোনো ড্রাফট নেই" detail="আদায় স্ক্রিন থেকে নতুন ড্রাফট তৈরি করুন" /> : drafts.map((item) => <View key={item.id} style={styles.postCard}><View style={styles.listIcon}><Icon name="file-text" color={purple} /></View><View style={styles.listBody}><Text style={styles.listTitle}>{members.find((m) => m.id === item.memberId)?.name ?? 'সদস্য'}</Text><Text style={styles.listMeta}>{item.date} · {money(item.amount)}</Text></View><Button label="পোস্ট" icon="send" small onPress={() => { postCollection(item.id); Alert.alert('পোস্ট হয়েছে', 'আদায়ের হিসাব পোস্ট করা হয়েছে'); }} /></View>)}</ScreenShell>;
+  const { collections, members, postCollection, deleteCollection } = useApp(); const drafts = collections.filter((c) => c.status === 'draft');
+  const handleDelete = (id: number) => Alert.alert('ডিলেট করবেন?', 'এই ড্রাফট আদায়টি মুছে যাবে', [{ text: 'বাতিল', style: 'cancel' }, { text: 'ডিলেট', style: 'destructive', onPress: () => { deleteCollection(id); Alert.alert('সফল', 'ডিলেট হয়েছে'); } }]);
+  return <ScreenShell title="পোস্টিং দিন" onBack={go}><Text style={styles.pageHeading}>ড্রাফট আদায়</Text><Text style={styles.pageSubheading}>যাচাই করে পোস্ট করলে হিসাবের অন্তর্ভুক্ত হবে</Text>{drafts.length === 0 ? <EmptyState icon="send" title="কোনো ড্রাফট নেই" detail="আদায় স্ক্রিন থেকে নতুন ড্রাফট তৈরি করুন" /> : drafts.map((item) => <View key={item.id} style={styles.postCard}><View style={styles.postDocumentIcon}><Ionicons name="document-text" size={20} color={purple} /></View><View style={styles.listBody}><Text style={styles.listTitle}>{members.find((m) => m.id === item.memberId)?.name ?? 'সদস্য'}</Text><Text style={styles.listMeta}>{item.date} · {money(item.amount)}</Text></View><Pressable onPress={() => handleDelete(item.id)} style={({ pressed }) => [styles.postDeleteButton, pressed && styles.pressed]} accessibilityLabel="ড্রাফট মুছুন"><Ionicons name="trash" size={18} color="#DC2626" /></Pressable><Button label="পোস্ট" icon="send" small onPress={() => { postCollection(item.id); Alert.alert('পোস্ট হয়েছে', 'আদায়ের হিসাব পোস্ট করা হয়েছে'); }} /></View>)}</ScreenShell>;
 }
 
 function GroupReportDateField({ label, value, onChange, showPicker, setShowPicker }: { label: string; value: Date; onChange: (value: Date) => void; showPicker: boolean; setShowPicker: (value: boolean) => void }) {
@@ -807,6 +808,8 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.light.background },
+  postDocumentIcon: { width: 43, height: 43, borderRadius: 12, backgroundColor: '#F3E8FF', alignItems: 'center', justifyContent: 'center' },
+  postDeleteButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginRight: 1 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.light.background, gap: 12 },
   loadingText: { color: colors.light.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 14 },
   header: { backgroundColor: purple, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 14, gap: 14 },
