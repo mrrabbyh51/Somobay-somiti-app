@@ -157,6 +157,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dataRef.current = remote.state;
         setData(remote.state);
         await persistLocal(remote.state);
+      } else {
+        pendingSyncRef.current += 1;
+        await pushRemote(dataRef.current);
+        await persistLocal(dataRef.current);
       }
       setSyncError(null);
       setSyncStatus('online');

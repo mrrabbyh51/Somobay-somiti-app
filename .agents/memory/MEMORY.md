@@ -1,0 +1,1 @@
+- [Supabase schema setup](supabase-ddl-setup.md) — initialize shared-state tables outside the REST connector before testing online sync.
