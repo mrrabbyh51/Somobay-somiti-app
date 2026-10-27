@@ -19,7 +19,7 @@ export type Member = {
 };
 export type Loan = {
   id: number; memberId: number; loanAmount: number; munafa: number; totalPayable: number;
-  collectionType: CollectionType; munafaPercent: number; startDate: string; paid: number;
+  collectionType: CollectionType; munafaPercent: number; startDate: string; paid: number; dueDate?: string;
   installmentAmount?: number; collectibleAmount?: number; duration?: string;
 };
 export type Collection = {
@@ -49,7 +49,7 @@ type Store = {
   logout: () => void; changeAdminPassword: (oldPassword: string, newPassword: string) => boolean;
   addGroup: (name: string, code: string, id?: number) => void; deleteGroup: (id: number) => void;
   addEmployee: (employee: Omit<Employee, 'id'>) => void; updateEmployee: (id: number, employee: Partial<Omit<Employee, 'id'>>) => void; deleteEmployee: (id: number) => void;
-  addMember: (member: Omit<Member, 'id'>) => boolean;
+  addMember: (member: Omit<Member, 'id'>) => boolean; deleteMember: (id: number) => void;
   addLoan: (loan: Omit<Loan, 'id' | 'paid'>) => boolean;
   updateMember: (id: number, member: Partial<Omit<Member, 'id'>>) => void;
   updateLoan: (id: number, loan: Partial<Omit<Loan, 'id'>>) => void;
@@ -257,6 +257,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       commit((previous) => ({ ...previous, members: [...previous.members, { ...member, id: nextId(previous.members) }] }));
       return true;
     },
+    deleteMember: (id) => commit((previous) => ({ ...previous, members: previous.members.filter((item) => item.id !== id) })),
     addLoan: (loan) => {
       commit((previous) => ({ ...previous, loans: [...previous.loans, { ...loan, id: nextId(previous.loans), paid: 0 }] }));
       return true;
